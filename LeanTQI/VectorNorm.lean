@@ -101,7 +101,8 @@ variable [Fact (1 ≤ p)]
 abbrev MatrixP (m n α : Type*) (_p : ℝ≥0∞) := Matrix m n α
 
 /-- a function of lpnorm, of which LpNorm p M = ‖M‖ for p-/
-def LpNorm (p : ℝ≥0∞) [Fact (1 ≤ p)] (M : Matrix m n 𝕂) : ℝ :=
+def LpNorm (p : ℝ≥0∞) (M : Matrix m n 𝕂) : ℝ :=
+  -- if p = 0 then {i | ‖M i‖ ≠ 0}.toFinite.toFinset.card
   if p = ∞ then ⨆ i, ⨆ j, ‖M i j‖
   else (∑ i, ∑ j, ‖M i j‖ ^ p.toReal) ^ (1 / p.toReal)
 
@@ -218,19 +219,6 @@ theorem lp_norm_eq_lpnorm : ‖M‖ = LpNorm p M := by
   · rw [lp_norm_eq_ciSup p M h, LpNorm, if_pos h]
   · rw [lp_norm_def p M h, LpNorm, if_neg h]
 
-
-
-
-
-
-
-
-
-
--- todo
--- theorem lp_norm_eq_lpnorm : LpNorm p = fun _ => ‖M‖ := by
-
-
 example (hp : p ≠ ∞) :
     ‖M‖₊ = (∑ i, ∑ j, ‖M i j‖₊ ^ p.toReal) ^ (1 / p.toReal) := by
   rw [lp_nnnorm_def p M hp]
@@ -253,26 +241,30 @@ example (M : (MatrixP m n 𝕂 2)) :
 -- #check norm_add_le M N
 
 -- Lemma lpnorm_continuous p m n : continuous (@lpnorm R p m n).
-#check continuous_norm
+example : Continuous fun (M : MatrixP m n 𝕂 p) => ‖M‖ := by
+  exact continuous_norm
+
+theorem lpnorm_continuous_at_m : Continuous (LpNorm (m := m) (n := n) (𝕂 := 𝕂) p) := by
+  have : (fun M : MatrixP m n 𝕂 p => ‖M‖) = (LpNorm (m := m) (n := n) (𝕂 := 𝕂) p) := by
+    ext
+    rw [@lp_norm_eq_lpnorm]
+  rw [← this]
+  exact continuous_norm
 
 -- todo
 -- Lemma continuous_lpnorm p m n (A : 'M[C]_(m,n)) :
 --   1 < p -> {for p, continuous (fun p0 : R => lpnorm p0 A)}.
--- #check (fun p : ℝ≥0∞ => ‖(M : MatrixP m n 𝕂 p)‖)
-theorem t (A : Matrix m n 𝕂) :
-    Continuous (fun a : ℝ≥0∞ => ‖(A : MatrixP m n 𝕂 a)‖) := by
-  exact continuous_const
-#check t
+theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
+    ContinuousOn ((LpNorm (m := m) (n := n) (𝕂 := 𝕂) (M := A))) {p | 1 ≤ p} := by
+  simp only [ContinuousOn, Set.mem_setOf_eq, ContinuousWithinAt, LpNorm]
+  sorry
 
 -- Lemma lpnorm_nincr (p1 p2 : R) (m n : nat) (A : 'M[C]_(m,n)) :
 --   1 <= p1 <= p2 -> lpnorm p1 A >= lpnorm p2 A.
-set_option trace.Meta.synthInstance true in
-example (p₁ p₂ : ℝ≥0∞) (hp₁ : p₁ ≠ ⊤) (hp₂ : p₂ ≠ ⊤) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)]
-    (ple : p₁ ≤ p₂) (A : MatrixP m n 𝕂 p₁) (A' : MatrixP m n 𝕂 p₂) (aeq : A = A') :
-    ‖A‖₊ ≥ ‖A'‖₊ := by
-  rw [lp_nnnorm_def p₁ A hp₁, lp_nnnorm_def p₂ A' hp₂]
-  rw [aeq]
+example (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (ple : p₁ ≤ p₂) :
+    LpNorm p₁ M ≥ LpNorm p₂ M := by
   sorry
+
 example (p : ℝ≥0∞) [Fact (1 ≤ p)] (hp : p ≠ ⊤)
 (ist₁ : Norm (Matrix m n 𝕂) := (lpMatrixNormedAddCommGroup p).toNorm)
 : ist₁.norm M = 0 := by
@@ -280,7 +272,6 @@ example (p : ℝ≥0∞) [Fact (1 ≤ p)] (hp : p ≠ ⊤)
   -- rw [lp_norm_def p M hp]
 example [Norm ℕ] : ‖(0 : ℝ)‖ = ‖(0 : ℕ)‖ := by sorry
 
-set_option trace.Meta.synthInstance true in
 example (p₁ p₂ : ℝ≥0∞) (hp₁ : p₁ ≠ ⊤) (hp₂ : p₂ ≠ ⊤) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)]
     (ple : p₁ ≤ p₂) :
     ‖(M : MatrixP m n 𝕂 p₁)‖ ≤ ‖(M : MatrixP m n 𝕂 p₂)‖ := by
