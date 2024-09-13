@@ -4,6 +4,7 @@ import Mathlib.Analysis.Normed.Group.InfiniteSum
 import Mathlib.Analysis.MeanInequalities
 import Mathlib.Analysis.Normed.Lp.lpSpace
 import Mathlib.Analysis.Normed.Lp.PiLp
+import LeanTQI.MatrixPredicate
 -- import LeanCopilot
 
 set_option profiler true
@@ -82,7 +83,7 @@ end
 
 
 -- hoelder_ord: infinite NNReal
--- #check NNReal.inner_le_Lp_mul_Lq_tsum
+#check NNReal.inner_le_Lp_mul_Lq_tsum
 
 
 -- NormRC
@@ -251,6 +252,14 @@ theorem lpnorm_continuous_at_m : Continuous (LpNorm (m := m) (n := n) (𝕂 := �
   rw [← this]
   exact continuous_norm
 
+
+
+
+
+
+
+
+
 -- todo
 -- Lemma continuous_lpnorm p m n (A : 'M[C]_(m,n)) :
 --   1 < p -> {for p, continuous (fun p0 : R => lpnorm p0 A)}.
@@ -279,6 +288,64 @@ example (p₁ p₂ : ℝ≥0∞) (hp₁ : p₁ ≠ ⊤) (hp₂ : p₂ ≠ ⊤) [
   -- simp [ist₁.norm]
   -- rw [lp_norm_def p₁ A hp₁, lp_norm_def p₂ A' hp₂]
   sorry
+
+-- todo
+-- Lemma lpnorm_cvg (m n : nat) (A : 'M[C]_(m,n)) :
+--   (fun k => lpnorm k.+1%:R A) @ \oo --> lpnorm 0 A.
+-- Lemma lpnorm_ndecr (p1 p2 : R) (m n : nat) (A : 'M[C]_(m,n)) :
+--   1 <= p1 <= p2 ->
+--   lpnorm p1 A / ((m * n)%:R `^ p1^-1)%:C <= lpnorm p2 A / ((m * n)%:R `^ p2^-1)%:C.
+
+
+
+
+
+#check Finset.comp_sup_eq_sup_comp
+#check iSup_comm
+#check Finset.sup_comm
+-- Lemma lpnorm_trmx p q r (M: 'M[C]_(q,r)) : lpnorm p (M^T) = lpnorm p M.
+-- Proof. by rewrite lpnorm.unlock lpnormrc_trmx. Qed.
+set_option trace.Meta.synthInstance true in
+@[simp]
+theorem lpnorm_transpose (M : MatrixP m n 𝕂 p) : ‖Mᵀ‖ = ‖M‖ := by
+  by_cases hp : p = ⊤
+  · rw [lp_norm_eq_ciSup p M hp, lp_norm_eq_ciSup p Mᵀ hp, transpose]
+    dsimp only [of_apply]
+    -- have : ⨆ i, ⨆ j, ‖M i j‖ = ⨆ j, ⨆ i, ‖M j i‖ := by exact rfl
+    -- rw [this]
+    let norm' (m:=M) := fun i j => norm (M i j)
+    have : ∀ i j, ‖M i j‖ = norm' M i j := by sorry
+    -- change ⨆ i, ⨆ j, norm (M i j) = ⨆ i, ⨆ j, norm (M j i)
+    simp_rw [this]
+    -- change ⨆ i, ⨆ j, (norm' M) i j = ⨆ i, ⨆ j, (norm' M) j i
+
+    -- let tt := iSup_comm (f:=norm' M)
+
+    sorry
+
+    -- rw [iSup_comm (f:=norm' M)]
+  · rw [lp_norm_def p M hp, lp_norm_def p Mᵀ hp, transpose]
+    dsimp only [of_apply]
+    rw [Finset.sum_comm]
+
+
+-- Lemma lpnorm_diag p q (D : 'rV[C]_q) : lpnorm p (diag_mx D) = lpnorm p D.
+
+
+-- Lemma lpnorm_conjmx p q r (M: 'M[C]_(q,r)) : lpnorm p (M^*m) = lpnorm p M.
+@[simp]
+theorem lpnorm_conjugate (M : MatrixP m n 𝕂 p) : ‖M^*‖ = ‖M‖ := by
+  by_cases hp : p = ⊤
+  · simp_rw [lp_norm_eq_ciSup p M hp, lp_norm_eq_ciSup p M^* hp, conjugate,
+    RCLike.star_def, map_apply, RCLike.norm_conj]
+  · simp_rw [lp_norm_def p M hp, lp_norm_def p M^* hp, conjugate, RCLike.star_def, map_apply,
+    (show ∀ i j, ‖(starRingEnd 𝕂) (M i j)‖ = ‖M i j‖ by exact fun i j ↦ RCLike.norm_conj (M i j))]
+
+-- Lemma lpnorm_adjmx p q r (M: 'M[C]_(q,r)) : lpnorm p (M^*t) = lpnorm p M.
+@[simp]
+theorem lpnorm_conjTranspose [DecidableEq m] [DecidableEq n] (M : MatrixP m n 𝕂 p) : ‖Mᴴ‖ = ‖M‖ := by
+  simp only [conjTranspose_transpose_conjugate M, lpnorm_conjugate, lpnorm_transpose]
+
 
 
 end lpnorm
