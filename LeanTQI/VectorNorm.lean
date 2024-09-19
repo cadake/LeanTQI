@@ -109,7 +109,7 @@ def LpNorm (p : ℝ≥0∞) (M : Matrix m n 𝕂) : ℝ :=
 
 /-- a function of lpnorm, of which LpNorm p M = ‖M‖₊ for p-/
 @[simp]
-def NNLpNorm (p : ℝ≥0∞) [Fact (1 ≤ p)] (M : Matrix m n 𝕂) : ℝ :=
+def LpNNNorm (p : ℝ≥0∞) [Fact (1 ≤ p)] (M : Matrix m n 𝕂) : ℝ :=
   if p = ∞ then ⨆ i, ⨆ j, ‖M i j‖₊
   else (∑ i, ∑ j, ‖M i j‖₊ ^ p.toReal) ^ (1 / p.toReal)
 
@@ -308,8 +308,6 @@ theorem Finset.single_le_sum' [OrderedAddCommMonoid α] (M : m → n → α) (h 
 --     Preorder.le_trans ‖M i j‖ (∑ k : n, ‖M i k‖) (∑ k : m, ∑ l : n, ‖M k l‖) (single_le_row M i j)
 --       (row_le_sum M i)
 
-example (f : m → ℝ) : ∑ i, (f i) ^ p.toReal ≤ (∑ i, f i) ^ p.toReal := by
-  sorry
   -- apply?
 #check lp.sum_rpow_le_norm_rpow
 
@@ -374,6 +372,7 @@ example (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (h₁ :
         enter [2]
         intro j
         rw [this i j]
+    generalize (p₂.toReal - p₁.toReal) / p₁.toReal = p
     sorry
     -- apply lp.sum_rpow_le_norm_rpow
 
@@ -425,6 +424,111 @@ example (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (h₁ :
   rw [this] at tt
   simp only [one_div, ge_iff_le]
   exact tt
+
+
+
+
+
+example [Fact (1 ≤ p)] : p ≠ 0 := ge_one_ne_zero p
+
+example [Fact (1 ≤ p)] (h : p ≠ ⊤) : p⁻¹ ≠ 0 := ENNReal.inv_ne_zero.mpr h
+
+example [Fact (1 ≤ p)] (h : p ≠ ⊤) : p.toReal ≠ 0 := ge_one_toReal_ne_zero p h
+
+example [Fact (1 ≤ p)] (h : p ≠ ⊤) : p.toReal⁻¹ ≠ 0 := inv_ne_zero (ge_one_toReal_ne_zero p h)
+
+
+example [Fact (1 ≤ p)] : 0 ≤ p := by exact zero_le p
+
+example [Fact (1 ≤ p)] : 0 ≤ p.toReal := by exact ENNReal.toReal_nonneg
+
+
+
+
+
+
+
+
+
+
+
+theorem lpnorm_eq0_iff : LpNorm p M = 0 ↔ M = 0 := by
+  rw [← lp_norm_eq_lpnorm]
+  exact norm_eq_zero
+
+theorem lpnorm_nonneg : 0 ≤ LpNorm p M := by
+  rw [← lp_norm_eq_lpnorm]
+  exact norm_nonneg M
+
+theorem lpnorm_rpow_nonneg (h : 0 ≤ LpNorm p M) : 0 ≤ ∑ i, ∑ j, ‖M i j‖ ^ p.toReal := by
+  apply Fintype.sum_nonneg
+  have : ∀ i, 0 ≤ (fun i ↦ ∑ j : n, ‖M i j‖ ^ p.toReal) i := by
+    intro i
+    simp only
+    apply Fintype.sum_nonneg
+    intro j
+    simp only
+    simp only [Pi.zero_apply]
+    exact Real.rpow_nonneg (norm_nonneg (M i j)) p.toReal
+  exact this
+
+theorem lpnorm_rpow_ne0 (h : LpNorm p M ≠ 0) : ∑ i, ∑ j, ‖M i j‖ ^ p.toReal ≠ 0 := by
+  simp only [LpNorm, one_div, ne_eq] at h
+  intro g
+  rw [g] at h
+  by_cases h' : p = ⊤
+  · simp only [if_pos h'] at h
+    sorry
+  · simp only [if_neg h'] at h
+    rw [Real.zero_rpow <| inv_ne_zero <| ge_one_toReal_ne_zero p h'] at h
+    contradiction
+
+example (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (h₁ : p₁ ≠ ⊤) (h₂ : p₂ ≠ ⊤) (ple : p₁ ≤ p₂) :
+    LpNorm p₂ M ≤ LpNorm p₁ M := by
+  by_cases h : p₁ = p₂
+  · rw [h]
+  have plt : p₁ < p₂ := by exact LE.le.lt_of_ne ple h
+  by_cases g : LpNorm p₂ M = 0
+  · rw [g]
+    rw [← lp_norm_eq_lpnorm] at g
+    rw [(lpnorm_eq0_iff p₁ M).mpr (norm_eq_zero.mp g)]
+  have eq1 : ∑ i, ∑ j, (‖M i j‖ / LpNorm p₂ M)^p₂.toReal = 1 := by
+    simp only [LpNorm, one_div, if_neg h₂]
+    have : ∀ i j, (‖M i j‖ / (∑ i : m, ∑ j : n, ‖M i j‖ ^ p₂.toReal) ^ p₂.toReal⁻¹) ^ p₂.toReal =
+                  (‖M i j‖ ^ p₂.toReal) / ((∑ i : m, ∑ j : n, ‖M i j‖ ^ p₂.toReal)) := by
+      intro i j
+      rw [Real.div_rpow (norm_nonneg (M i j))]
+      congr
+      rw [← Real.rpow_mul, mul_comm, CommGroupWithZero.mul_inv_cancel, Real.rpow_one]
+      · exact ge_one_toReal_ne_zero p₂ h₂
+      · exact lpnorm_rpow_nonneg p₂ M (lpnorm_nonneg p₂ M)
+      · exact Real.rpow_nonneg (lpnorm_rpow_nonneg p₂ M (lpnorm_nonneg p₂ M)) p₂.toReal⁻¹
+    simp_rw [this]
+    have : ∑ x : m, ∑ x_1 : n, ‖M x x_1‖ ^ p₂.toReal / ∑ i : m, ∑ j : n, ‖M i j‖ ^ p₂.toReal =
+           (∑ x : m, ∑ x_1 : n, ‖M x x_1‖ ^ p₂.toReal) / (∑ i : m, ∑ j : n, ‖M i j‖ ^ p₂.toReal) := by
+      simp_rw [div_eq_inv_mul]
+      conv_lhs =>
+        enter [2]
+        intro i
+        rw [← Finset.mul_sum]
+      rw [← Finset.mul_sum]
+    simp_rw [this]
+    rw [div_self (lpnorm_rpow_ne0 p₂ M g)]
+  have le1 : ∑ i, ∑ j, (‖M i j‖ / LpNorm p₂ M)^p₂.toReal ≤ ∑ i, ∑ j, (‖M i j‖ / LpNorm p₂ M)^p₁.toReal := by
+    sorry
+  have eq2 : ∑ i, ∑ j, (‖M i j‖ / LpNorm p₂ M)^p₁.toReal = ((LpNorm p₁ M) / (LpNorm p₂ M))^p₁.toReal := by
+    sorry
+  have le2 : 1 ≤ ((LpNorm p₁ M) / (LpNorm p₂ M))^p₁.toReal := by
+    rw [eq2, eq1] at le1
+    exact le1
+  have le3 : 1 ≤ (LpNorm p₁ M) / (LpNorm p₂ M) := by
+    rw [Eq.symm (Real.one_rpow p₁.toReal)] at le2
+    apply (Real.rpow_le_rpow_iff (zero_le_one' ℝ) _ ((ENNReal.toReal_pos_iff_ne_top p₁).mpr h₁)).mp le2
+    rw [div_eq_inv_mul]
+    exact Left.mul_nonneg (inv_nonneg_of_nonneg <| lpnorm_nonneg p₂ M) (lpnorm_nonneg p₁ M)
+  have : 0 < LpNorm p₂ M :=
+    lt_of_le_of_ne (lpnorm_nonneg p₂ M) fun a ↦ g (id (Eq.symm a))
+  exact (one_le_div₀ this).mp le3
 
 
 
