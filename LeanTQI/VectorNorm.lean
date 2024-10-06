@@ -81,86 +81,6 @@ theorem single_le_sum' [OrderedAddCommMonoid α] (M : m → n → α) (h : ∀ i
 end Finset
 
 
-namespace Finset
-
-variable {𝕂 m n α: Type*}
-
-theorem single_le_row [Fintype n] [OrderedAddCommMonoid α] (M : m → n → α) (h : ∀ i j, 0 ≤ M i j) (i : m) (j : n) :
-    M i j ≤ ∑ k, M i k := by
-  apply Finset.single_le_sum (f:=fun j => M i j) (fun i_1 _ ↦ h i i_1) (Finset.mem_univ j)
-
-theorem row_le_sum [Fintype m] [Fintype n] [OrderedAddCommMonoid α] (M : m → n → α) (h : ∀ i j, 0 ≤ M i j) (i : m) :
-    ∑ j, M i j ≤ ∑ k, ∑ l, M k l := by
-  exact Finset.single_le_sum (f := fun i => ∑ j, M i j) (fun i _ ↦ Fintype.sum_nonneg (h i)) (Finset.mem_univ i)
-
-theorem single_le_sum' [Fintype m] [Fintype n] [OrderedAddCommMonoid α] (M : m → n → α) (h : ∀ i j, 0 ≤ M i j) (i : m) (j : n) :
-    M i j ≤ ∑ k, ∑ l, M k l := by
-  exact Preorder.le_trans (M i j) (∑ k : n, M i k) (∑ k : m, ∑ l : n, M k l)
-    (Finset.single_le_row M h i j) (Finset.row_le_sum M h i)
-
--- theorem single_le_row (i : m) (j : n) : ‖M i j‖ ≤ ∑ k, ‖M i k‖ := by
---   have h : ∀ i j, 0 ≤ ‖M i j‖ := by exact fun i j ↦ norm_nonneg (M i j)
---   change (fun j => norm (M i j)) j ≤ ∑ k, (fun k => norm (M i k)) k
---   apply Finset.single_le_sum (f:=fun j => norm (M i j))
---   intro k
---   exact fun _ ↦ h i k
---   exact Finset.mem_univ j
-
--- theorem row_le_sum (i : m) : ∑ j, ‖M i j‖ ≤ ∑ k, ∑ l, ‖M k l‖ := by
---   have h : ∀ i j, 0 ≤ ‖M i j‖ := by exact fun i j ↦ norm_nonneg (M i j)
---   change (fun i => ∑ j, norm (M i j)) i ≤ ∑ k : m, ∑ l : n, ‖M k l‖
---   apply Finset.single_le_sum (f := fun i => ∑ j, norm (M i j))
---   exact fun i _ ↦ Fintype.sum_nonneg (h i)
---   exact Finset.mem_univ i
-
--- theorem single_le_sum (M : Matrix m n 𝕂) : ∀ i j, ‖M i j‖ ≤ ∑ k, ∑ l, ‖M k l‖ := by
---   exact fun i j ↦
---     Preorder.le_trans ‖M i j‖ (∑ k : n, ‖M i k‖) (∑ k : m, ∑ l : n, ‖M k l‖) (single_le_row M i j)
---       (row_le_sum M i)
-
-end Finset
-
-namespace ENNReal
-
-variable {𝕂 m n: Type*}
-
-variable (p : ℝ≥0∞)
-variable [RCLike 𝕂] [Fintype m] [Fintype n]
-variable [Fact (1 ≤ p)]
-
-theorem ge_one_ne_zero : p ≠ 0 := by
-  have pge1 : 1 ≤ p := Fact.out
-  intro peq0
-  rw [peq0] at pge1
-  simp_all only [nonpos_iff_eq_zero, one_ne_zero]
-
-theorem ge_one_toReal_ne_zero (hp : p ≠ ∞) : p.toReal ≠ 0 := by
-  have pge1 : 1 ≤ p := Fact.out
-  intro preq0
-  have : p = 0 := by
-    refine (ENNReal.toReal_eq_toReal_iff' hp ?hy).mp preq0
-    trivial
-  rw [this] at pge1
-  simp_all only [nonpos_iff_eq_zero, one_ne_zero]
-
-theorem toReal_lt_toReal_if (p q : ℝ≥0∞) (hp : p ≠ ⊤) (hq : q ≠ ⊤) (h : p < q) : p.toReal < q.toReal := by
-  apply (ENNReal.ofReal_lt_ofReal_iff_of_nonneg _).mp
-  rw [ENNReal.ofReal_toReal, ENNReal.ofReal_toReal] <;> assumption
-  exact ENNReal.toReal_nonneg
-
-example [Fact (1 ≤ p)] : p ≠ 0 := ge_one_ne_zero p
-
-example [Fact (1 ≤ p)] (h : p ≠ ⊤) : p⁻¹ ≠ 0 := ENNReal.inv_ne_zero.mpr h
-
-example [Fact (1 ≤ p)] (h : p ≠ ⊤) : p.toReal ≠ 0 := ge_one_toReal_ne_zero p h
-
-example [Fact (1 ≤ p)] (h : p ≠ ⊤) : p.toReal⁻¹ ≠ 0 := inv_ne_zero (ge_one_toReal_ne_zero p h)
-
-example [Fact (1 ≤ p)] : 0 ≤ p := by exact zero_le p
-
-example [Fact (1 ≤ p)] : 0 ≤ p.toReal := by exact ENNReal.toReal_nonneg
-
-end ENNReal
 
 noncomputable section
 
@@ -327,7 +247,6 @@ theorem lp_nnnorm_def (M : MatrixP m n 𝕂 p) (hp : p ≠ ∞) :
       exact norm_nonneg (M x x_1)
     exact Fintype.sum_nonneg this
   have prne0 : p.toReal ≠ 0 := by
-    exact ENNReal.ge_one_toReal_ne_zero p hp
     exact ENNReal.ge_one_toReal_ne_zero p hp
   conv_lhs =>
     enter [1, 2]
@@ -586,7 +505,6 @@ theorem lpnorm_rpow_ne0 (h : LpNorm p M ≠ 0) (h' : p ≠ ⊤) : ∑ i, ∑ j, 
   rw [g] at h
   simp only [if_neg h'] at h
   rw [Real.zero_rpow <| inv_ne_zero <| ENNReal.ge_one_toReal_ne_zero p h'] at h
-  rw [Real.zero_rpow <| inv_ne_zero <| ENNReal.ge_one_toReal_ne_zero p h'] at h
   contradiction
 
 theorem lpnorm_rpow_pos (h : LpNorm p M ≠ 0) (h' : p ≠ ⊤) : 0 < ∑ i, ∑ j, ‖M i j‖ ^ p.toReal := by
@@ -637,7 +555,6 @@ theorem lpnorm_elem_div_norm (i : m) (j : n) : 0 ≤ ‖M i j‖ / LpNorm p M �
 -- Lemma lpnorm_nincr (p1 p2 : R) (m n : nat) (A : 'M[C]_(m,n)) :
 --   1 <= p1 <= p2 -> lpnorm p1 A >= lpnorm p2 A.
 theorem lpnorm_antimono (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (h₁ : p₁ ≠ ⊤) (h₂ : p₂ ≠ ⊤) (ple : p₁ ≤ p₂) :
-theorem lpnorm_decreasing (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (h₁ : p₁ ≠ ⊤) (h₂ : p₂ ≠ ⊤) (ple : p₁ ≤ p₂) :
     LpNorm p₂ M ≤ LpNorm p₁ M := by
   by_cases h : p₁ = p₂
   · rw [h]
@@ -653,7 +570,6 @@ theorem lpnorm_decreasing (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 
       rw [Real.div_rpow (norm_nonneg (M i j))]
       congr
       rw [← Real.rpow_mul, mul_comm, CommGroupWithZero.mul_inv_cancel, Real.rpow_one]
-      · exact ENNReal.ge_one_toReal_ne_zero p₂ h₂
       · exact ENNReal.ge_one_toReal_ne_zero p₂ h₂
       · exact lpnorm_rpow_nonneg p₂ M
       · exact Real.rpow_nonneg (lpnorm_rpow_nonneg p₂ M) p₂.toReal⁻¹
@@ -675,7 +591,6 @@ theorem lpnorm_decreasing (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 
     intro j _
     by_cases h' : ‖M i j‖ / LpNorm p₂ M = 0
     · rw [h', Real.zero_rpow (ENNReal.ge_one_toReal_ne_zero p₁ h₁), Real.zero_rpow (ENNReal.ge_one_toReal_ne_zero p₂ h₂)]
-    · rw [h', Real.zero_rpow (ENNReal.ge_one_toReal_ne_zero p₁ h₁), Real.zero_rpow (ENNReal.ge_one_toReal_ne_zero p₂ h₂)]
     refine Real.rpow_le_rpow_of_exponent_ge ?h.h.hx0 (lpnorm_elem_div_norm p₂ M i j).2 ((ENNReal.toReal_le_toReal h₁ h₂).mpr ple)
     exact lt_of_le_of_ne (lpnorm_elem_div_norm p₂ M i j).1 fun a ↦ h' (id (Eq.symm a))
   have eq2 : ∑ i, ∑ j, (‖M i j‖ / LpNorm p₂ M) ^ p₁.toReal = ((LpNorm p₁ M) / (LpNorm p₂ M)) ^ p₁.toReal := by
@@ -691,7 +606,7 @@ theorem lpnorm_decreasing (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 
     have : (∑ i : m, ∑ i_1 : n, ‖M i i_1‖ ^ p₁.toReal) = (LpNorm p₁ M) ^ p₁.toReal := by
       simp only [LpNorm, if_neg h₁, one_div, ite_pow]
       rw [← Real.rpow_mul, mul_comm, CommGroupWithZero.mul_inv_cancel, Real.rpow_one]
-      exact ENNReal.ENNReal.ge_one_toReal_ne_zero p₁ h₁
+      exact ENNReal.ge_one_toReal_ne_zero p₁ h₁
       apply lpnorm_rpow_nonneg
     rw [this]
     rw [← division_def, ← Real.div_rpow (lpnorm_nonneg p₁ M) (lpnorm_nonneg p₂ M)]
