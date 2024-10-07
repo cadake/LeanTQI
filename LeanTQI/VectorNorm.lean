@@ -811,6 +811,7 @@ theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
       have : Fact (1 ≤ p) := {out := pin.left}
       exact lpnorm_rpow_ne0 p A (fun h' => h ((lpnorm_eq0_iff p A).mp h')) pin.right
 
+-- test
 
 
 
