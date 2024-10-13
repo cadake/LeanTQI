@@ -4,7 +4,7 @@ import LeanTQI.MatrixPredicate
 set_option profiler true
 
 variable {𝕂 𝕂' E F α R : Type*}
-variable {m n : Type*}
+variable {m n l : Type*}
 
 
 namespace ENNReal
@@ -96,7 +96,7 @@ open scoped NNReal ENNReal Finset Matrix
 -- local notation "‖" e "‖ₚ" => Norm.norm e
 
 variable (p p₁ p₂ : ℝ≥0∞)
-variable [RCLike 𝕂] [Fintype m] [Fintype n]
+variable [RCLike 𝕂] [Fintype m] [Fintype n] [Fintype l]
 variable [Fact (1 ≤ p)]
 
 /-- synonym for matrix with lp norm-/
@@ -117,6 +117,7 @@ def LpNNNorm (p : ℝ≥0∞) [Fact (1 ≤ p)] (M : Matrix m n 𝕂) : ℝ :=
   else (∑ i, ∑ j, ‖M i j‖₊ ^ p.toReal) ^ (1 / p.toReal)
 
 variable (M N : Matrix m n 𝕂)
+variable (A : Matrix m n 𝕂) (B : Matrix n l 𝕂)
 variable (r : R)
 
 /-- Seminormed group instance (using lp norm) for matrices over a seminormed group. Not
@@ -395,7 +396,6 @@ theorem lpnorm_elem_div_norm (i : m) (j : n) : 0 ≤ ‖M i j‖ / LpNorm p M �
     apply mul_nonneg (norm_nonneg (M i j)) (inv_nonneg_of_nonneg <| lpnorm_nonneg p M)
   · apply div_le_one_of_le (lpnorm_elem_le_norm p M i j) (lpnorm_nonneg p M)
 
--- todo simplify
 -- Lemma lpnorm_nincr (p1 p2 : R) (m n : nat) (A : 'M[C]_(m,n)) :
 --   1 <= p1 <= p2 -> lpnorm p1 A >= lpnorm p2 A.
 theorem lpnorm_antimono (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (h₁ : p₁ ≠ ⊤) (h₂ : p₂ ≠ ⊤) (ple : p₁ ≤ p₂) :
@@ -504,21 +504,21 @@ theorem lpnorm_transpose (M : MatrixP m n 𝕂 p) : ‖Mᵀ‖ = ‖M‖ := by
     dsimp only [of_apply]
     rw [Finset.sum_comm]
 
-
-
-
-
-
-
-
-
--- todo
 -- Lemma lpnorm_diag p q (D : 'rV[C]_q) : lpnorm p (diag_mx D) = lpnorm p D.
-
-
-
-
-
+theorem lpnorm_diag [DecidableEq m] (d : m → 𝕂) (h : p ≠ ⊤) : LpNorm p (Matrix.diagonal d) = (∑ i, ‖d i‖ ^ p.toReal) ^ (1 / p.toReal) := by
+  simp only [LpNorm, one_div, if_neg h, diagonal, of_apply]
+  have sum_eq_single : ∀ (i : m), ∑ j, ‖if i = j then d i else 0‖ ^ p.toReal = ‖d i‖ ^ p.toReal := by
+    intro i
+    nth_rw 2 [← (show (if i = i then d i else 0) = d i by simp only [↓reduceIte])]
+    apply Finset.sum_eq_single_of_mem (f := fun j => ‖if i = j then d i else 0‖ ^ p.toReal) i (Finset.mem_univ i)
+    intro j _ jnei
+    rw [ne_comm] at jnei
+    simp only [if_neg jnei, norm_zero, le_refl]
+    exact Real.zero_rpow (ENNReal.ge_one_toReal_ne_zero p h)
+  conv_lhs =>
+    enter [1, 2]
+    intro x
+    rw [sum_eq_single x]
 
 -- Lemma lpnorm_conjmx p q r (M: 'M[C]_(q,r)) : lpnorm p (M^*m) = lpnorm p M.
 @[simp]
@@ -629,7 +629,7 @@ theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
       have : Fact (1 ≤ p) := {out := pin.left}
       exact lpnorm_rpow_ne0 p A (fun h' => h ((lpnorm_eq0_iff p A).mp h')) pin.right
 
--- test
+-- example (ple2 : p ≤ 2) : LpNorm p (A * B) ≤ (LpNorm p A) * (LpNorm p B) := by
 
 
 
