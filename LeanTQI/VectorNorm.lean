@@ -287,7 +287,8 @@ theorem le_iSup_iSup (f : m → n → ℝ) (i : m) (j : n) : f i j ≤ ⨆ i, �
 
 theorem le_iSup_iSup' (f : m → n → ℝ) (i : m) (j : n) : f i j ≤ ⨆ j, ⨆ i, f i j :=
   le_trans (le_ciSup (Finite.bddAbove_range (f i)) j)
-    (ciSup_mono (Finite.bddAbove_range fun j ↦ ⨆ i, f i j) (fun j => le_ciSup (f := fun i => f i j) (Finite.bddAbove_range fun i ↦ f i j) i))
+    (ciSup_mono (Finite.bddAbove_range fun j ↦ ⨆ i, f i j)
+      (fun j => le_ciSup (f := fun i => f i j) (Finite.bddAbove_range fun i ↦ f i j) i))
 
 omit [Fintype m] [Fintype n] in
 theorem iSup_iSup_nonneg : 0 ≤ ⨆ i, ⨆ j, ‖M i j‖ :=
@@ -394,6 +395,7 @@ theorem lpnorm_elem_div_norm (i : m) (j : n) : 0 ≤ ‖M i j‖ / LpNorm p M �
     apply mul_nonneg (norm_nonneg (M i j)) (inv_nonneg_of_nonneg <| lpnorm_nonneg p M)
   · apply div_le_one_of_le (lpnorm_elem_le_norm p M i j) (lpnorm_nonneg p M)
 
+-- todo simplify
 -- Lemma lpnorm_nincr (p1 p2 : R) (m n : nat) (A : 'M[C]_(m,n)) :
 --   1 <= p1 <= p2 -> lpnorm p1 A >= lpnorm p2 A.
 theorem lpnorm_antimono (p₁ p₂ : ℝ≥0∞) [Fact (1 ≤ p₁)] [Fact (1 ≤ p₂)] (h₁ : p₁ ≠ ⊤) (h₂ : p₂ ≠ ⊤) (ple : p₁ ≤ p₂) :
@@ -554,14 +556,16 @@ theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
       exact fun p pin ↦ subset_closure pin.right
     rw [this]
     by_cases h : A = 0
-    · have : Set.EqOn (fun (p : ℝ≥0∞) ↦ (∑ i : m, ∑ j : n, 0)) (fun p ↦ (∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) ^ (1 / p.toReal)) {p | 1 ≤ p ∧ p ≠ ⊤} := by
+    · have : Set.EqOn (fun (p : ℝ≥0∞) ↦ (∑ i : m, ∑ j : n, 0))
+          (fun p ↦ (∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) ^ (1 / p.toReal)) {p | 1 ≤ p ∧ p ≠ ⊤} := by
         intro p pin
         have : Fact (1 ≤ p) := {out := pin.left}
         have : p.toReal ≠ 0 := ENNReal.ge_one_toReal_ne_zero p pin.right
         simp_rw [Finset.sum_const_zero, h, one_div, zero_apply, norm_zero,
           Real.zero_rpow this, Finset.sum_const_zero, Real.zero_rpow (inv_ne_zero this)]
       exact (continuousOn_congr this).mp continuousOn_const
-    have eqon : Set.EqOn (fun (p : ℝ≥0∞) ↦ Real.exp (Real.log ((∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) ^ (1 / p.toReal)))) (fun (p : ℝ≥0∞) ↦ (∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) ^ (1 / p.toReal)) {p | 1 ≤ p ∧ p ≠ ⊤} := by
+    have eqon : Set.EqOn (fun (p : ℝ≥0∞) ↦ Real.exp (Real.log ((∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) ^ (1 / p.toReal))))
+        (fun (p : ℝ≥0∞) ↦ (∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) ^ (1 / p.toReal)) {p | 1 ≤ p ∧ p ≠ ⊤} := by
       intro p pin
       have : Fact (1 ≤ p) := {out := pin.left}
       dsimp only
@@ -575,7 +579,8 @@ theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
       exact lt_of_le_of_ne ge0 (id (Ne.symm ne0))
     apply (continuousOn_congr eqon).mp
     apply ContinuousOn.rexp
-    have eqon' : Set.EqOn (fun (y : ℝ≥0∞) ↦ (1 / y.toReal) * Real.log ((∑ i : m, ∑ j : n, ‖A i j‖ ^ y.toReal))) (fun y ↦ Real.log ((∑ i : m, ∑ j : n, ‖A i j‖ ^ y.toReal) ^ (1 / y.toReal))) {p | 1 ≤ p ∧ p ≠ ⊤} := by
+    have eqon' : Set.EqOn (fun (y : ℝ≥0∞) ↦ (1 / y.toReal) * Real.log ((∑ i : m, ∑ j : n, ‖A i j‖ ^ y.toReal)))
+        (fun y ↦ Real.log ((∑ i : m, ∑ j : n, ‖A i j‖ ^ y.toReal) ^ (1 / y.toReal))) {p | 1 ≤ p ∧ p ≠ ⊤} := by
       intro p pin
       dsimp
       rw [Real.log_rpow]
@@ -602,7 +607,8 @@ theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
           dsimp
           simp_rw [(Real.rpow_eq_zero (Preorder.le_refl 0) (ENNReal.ge_one_toReal_ne_zero p pin.right)).mpr]
         exact (continuousOn_congr this).mp continuousOn_const
-      · have : Set.EqOn (fun (x : ℝ≥0∞) ↦ Real.exp <| Real.log <| ‖A i j‖ ^ x.toReal) (fun x ↦ ‖A i j‖ ^ x.toReal) {p | 1 ≤ p ∧ p ≠ ⊤} := by
+      · have : Set.EqOn (fun (x : ℝ≥0∞) ↦ Real.exp <| Real.log <| ‖A i j‖ ^ x.toReal)
+            (fun x ↦ ‖A i j‖ ^ x.toReal) {p | 1 ≤ p ∧ p ≠ ⊤} := by
           intro p pin
           have : Fact (1 ≤ p) := {out := pin.left}
           dsimp
@@ -617,7 +623,8 @@ theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
           dsimp
           rw [Real.log_rpow]
           exact lt_of_le_of_ne (norm_nonneg (A i j)) (Ne.symm h)
-        exact (continuousOn_congr this).mp (ContinuousOn.mul (ContinuousOn.mono ENNReal.continuousOn_toReal <| fun p pin => pin.right) (continuousOn_const))
+        exact (continuousOn_congr this).mp
+          (ContinuousOn.mul (ContinuousOn.mono ENNReal.continuousOn_toReal <| fun p pin => pin.right) (continuousOn_const))
       intro p pin
       have : Fact (1 ≤ p) := {out := pin.left}
       exact lpnorm_rpow_ne0 p A (fun h' => h ((lpnorm_eq0_iff p A).mp h')) pin.right
