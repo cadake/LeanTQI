@@ -629,11 +629,149 @@ theorem lpnorm_continuous_at_p (A : Matrix m n 𝕂) :
       have : Fact (1 ≤ p) := {out := pin.left}
       exact lpnorm_rpow_ne0 p A (fun h' => h ((lpnorm_eq0_iff p A).mp h')) pin.right
 
--- example (ple2 : p ≤ 2) : LpNorm p (A * B) ≤ (LpNorm p A) * (LpNorm p B) := by
+example (ple2 : p ≤ 2) (h : p ≠ ⊤) : LpNorm p (A * B) ≤ (LpNorm p A) * (LpNorm p B) := by
+  simp only [LpNorm, one_div, mul_ite, ite_mul, if_neg h]
+  have ABpnn : 0 ≤ (∑ i : m, ∑ j : l, ‖(A * B) i j‖ ^ p.toReal) := by
+    exact lpnorm_rpow_nonneg p (A * B)
+  have Apnn : 0 ≤ ∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal := by
+    exact lpnorm_rpow_nonneg p A
+  have Arpnn : ∀ i, 0 ≤ ∑ k : n, ‖A i k‖ ^ p.toReal :=
+    fun i => Finset.sum_nonneg (fun k _ => Real.rpow_nonneg (norm_nonneg (A i k)) p.toReal)
+  have Bpnn : 0 ≤ ∑ i : n, ∑ j : l, ‖B i j‖ ^ p.toReal := by
+    exact lpnorm_rpow_nonneg p B
+  have ApBpnn : 0 ≤ (∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) * (∑ i : n, ∑ j : l, ‖B i j‖ ^ p.toReal) := by
+    exact Left.mul_nonneg Apnn Bpnn
+  have ppos : 0 < p.toReal := (ENNReal.toReal_pos_iff_ne_top p).mpr h
+  have pinvpos : 0 < p.toReal⁻¹ := inv_pos_of_pos ppos
+  rw [← Real.mul_rpow Apnn Bpnn, Real.rpow_le_rpow_iff ABpnn ApBpnn pinvpos]
+
+  have : ∀ (i : m) (j : l), ‖(A * B) i j‖ ≤ ∑ (k : n), ‖A i k‖ * ‖B k j‖ := by
+    intro i j
+    simp [Matrix.mul_apply]
+    exact norm_sum_le_of_le Finset.univ (fun k kin => NormedRing.norm_mul (A i k) (B k j))
+
+  -- by_cases hp : p = 1
+  -- · simp only [hp, ENNReal.one_toReal, Real.rpow_one, ge_iff_le]
+  by_cases hp : p.toReal = 1
+  · sorry
+  let q := p.toReal.conjExponent
+  have hpq : p.toReal.IsConjExponent q := by
+    refine Real.IsConjExponent.conjExponent ?h
+    have : 1 ≤ p.toReal := by
+      cases ENNReal.dichotomy p
+      · contradiction
+      assumption
+    exact lt_of_le_of_ne this fun a ↦ hp (id (Eq.symm a))
+  have s : Finset n := Finset.univ
+  calc
+    ∑ i : m, ∑ j : l, ‖(A * B) i j‖ ^ p.toReal ≤ ∑ i, ∑ j, (∑ (k : n), ‖A i k‖ * ‖B k j‖) ^ p.toReal := by
+      apply Finset.sum_le_sum
+      intro i iin
+      apply Finset.sum_le_sum
+      intro j jin
+      rw [Real.rpow_le_rpow_iff (norm_nonneg <| (A * B) i j)
+        (Finset.sum_nonneg  fun k _ => mul_nonneg (norm_nonneg (A i k)) (norm_nonneg (B k j))) ppos]
+      exact this i j
+    _ ≤ ∑ i, ∑ j, ((∑ (k : n), ‖A i k‖ ^ p.toReal) ^ p.toReal⁻¹ * (∑ k, ‖B k j‖ ^ q) ^ q⁻¹) ^ p.toReal := by
+      apply Finset.sum_le_sum
+      intro i iin
+      apply Finset.sum_le_sum
+      intro j jin
+      have : 0 ≤ (∑ k : n, ‖A i k‖ ^ p.toReal) ^ p.toReal⁻¹ * (∑ k : n, ‖B k j‖ ^ q) ^ q⁻¹ :=
+        Left.mul_nonneg (Real.rpow_nonneg (Finset.sum_nonneg (fun k _ => Real.rpow_nonneg (norm_nonneg (A i k)) p.toReal)) p.toReal⁻¹)
+          (Real.rpow_nonneg (Finset.sum_nonneg (fun k _ => Real.rpow_nonneg (norm_nonneg (B k j)) q)) q⁻¹)
+      rw [Real.rpow_le_rpow_iff (Finset.sum_nonneg  fun k _ => mul_nonneg (norm_nonneg (A i k)) (norm_nonneg (B k j)))
+          this ppos]
+      rw [← one_div, ← one_div]
+      conv_rhs =>
+        enter [1, 1, 2]
+        intro k
+        enter [1]
+        rw [Eq.symm (abs_norm (A i k))]
+      conv_rhs =>
+        enter [2, 1, 2]
+        intro k
+        enter [1]
+        rw [Eq.symm (abs_norm (B k j))]
+      exact Real.inner_le_Lp_mul_Lq (f := fun k => ‖A i k‖) (g := fun k => ‖B k j‖) (hpq := hpq) (Finset.univ)
+    _ = ∑ i, ∑ j, (∑ (k : n), ‖A i k‖ ^ p.toReal) * ((∑ k, ‖B k j‖ ^ q) ^ q⁻¹) ^ p.toReal := by
+      conv_lhs =>
+        enter [2]
+        intro i
+        conv =>
+          enter [2]
+          intro j
+          rw [Real.mul_rpow (Real.rpow_nonneg (Arpnn i) p.toReal⁻¹)
+              (Real.rpow_nonneg (Finset.sum_nonneg (fun i _ => Real.rpow_nonneg (norm_nonneg (B i j)) q)) q⁻¹),
+              ← Real.rpow_mul <| Arpnn i, inv_mul_cancel₀ <| ENNReal.ge_one_toReal_ne_zero p h, Real.rpow_one]
+    _ = (∑ i, ∑ (k : n), (‖A i k‖ ^ p.toReal)) * (∑ j, ((∑ k, ‖B k j‖ ^ q) ^ q⁻¹) ^ p.toReal) := by
+      rw [← Finset.sum_mul_sum Finset.univ Finset.univ (fun i => ∑ (k : n), (‖A i k‖ ^ p.toReal)) (fun j => ((∑ k, ‖B k j‖ ^ q) ^ q⁻¹) ^ p.toReal)]
+    _ ≤ (∑ i : m, ∑ j : n, ‖A i j‖ ^ p.toReal) * ∑ i : n, ∑ j : l, ‖B i j‖ ^ p.toReal := by
+      by_cases h' : ∑ i : m, ∑ k : n, ‖A i k‖ ^ p.toReal = 0
+      · simp only [h', zero_mul, le_refl]
+      have h' : 0 < ∑ i : m, ∑ k : n, ‖A i k‖ ^ p.toReal := by
+        have : 0 ≤ ∑ i : m, ∑ k : n, ‖A i k‖ ^ p.toReal := by
+          apply Finset.sum_nonneg
+          intro i iin
+          apply Finset.sum_nonneg
+          intro j jin
+          exact Real.rpow_nonneg (norm_nonneg (A i j)) p.toReal
+        exact lt_of_le_of_ne Apnn fun a ↦ h' (id (Eq.symm a))
+      rw [mul_le_mul_left h', Finset.sum_comm]
+      apply Finset.sum_le_sum
+      intro i iin
+      have : ((∑ k : n, ‖B k i‖ ^ q) ^ q⁻¹) ≤ ((∑ k : n, ‖B k i‖ ^ p.toReal) ^ p.toReal⁻¹) := by
+        have : p.toReal ≤ q := by
+          sorry
+
+        let B' : Matrix n Unit 𝕂 := Matrix.col Unit (fun k : n => B k i)
+        have : (∑ k : n, ‖B k i‖ ^ q) ^ q⁻¹ = (∑ k : n, ‖B' k ()‖ ^ q) ^ q⁻¹ := by
+          exact rfl
+        rw [this]
+        have : (∑ k : n, ‖B k i‖ ^ p.toReal) ^ p.toReal⁻¹ = (∑ k : n, ‖B' k ()‖ ^ p.toReal) ^ p.toReal⁻¹ := by
+          exact rfl
+        rw [this]
+
+        have : (∑ k : n, ‖B' k ()‖ ^ q) ^ q⁻¹ = (∑ k : n, ∑ j : Unit, ‖B' k j‖ ^ q) ^ q⁻¹ := by
+          have : ∀ k : n, ∑ j : Unit, ‖B' k ()‖ ^ q = ‖B' k ()‖ ^ q := by
+            intro k
+            exact Fintype.sum_unique fun x ↦ ‖B' k ()‖ ^ q
+          simp_rw [this]
+        rw [this]
+        have : (∑ k : n, ‖B' k ()‖ ^ p.toReal) ^ p.toReal⁻¹ = (∑ k : n, ∑ j : Unit, ‖B' k j‖ ^ p.toReal) ^ p.toReal⁻¹ := by
+          have : ∀ k : n, ∑ j : Unit, ‖B' k ()‖ ^ p.toReal = ‖B' k ()‖ ^ p.toReal := by
+            intro k
+            exact Fintype.sum_unique fun x ↦ ‖B' k ()‖ ^ p.toReal
+          simp_rw [this]
+        rw [this]
 
 
+        let q' : ℝ≥0∞ := ENNReal.ofReal q
+        have hq : q' ≠ ⊤ := ENNReal.ofReal_ne_top
+        have : q = q'.toReal := by
+          refine Eq.symm (ENNReal.toReal_ofReal ?h)
+          exact Real.IsConjExponent.nonneg (id (Real.IsConjExponent.symm hpq))
+        rw [this, ← one_div, ← one_div]
+        have inst : Fact (1 ≤ q') := by
+          refine { out := ?out }
+          refine ENNReal.one_le_ofReal.mpr ?out.a
+          rw [show q = p.toReal / (p.toReal - 1) by rfl]
+          rw [one_le_div_iff]
+          left
+          sorry
+        have pleq : p ≤ q' := by
+          refine (ENNReal.le_ofReal_iff_toReal_le h ?hb).mpr (by assumption)
+          exact ENNReal.toReal_ofReal_eq_iff.mp (id (Eq.symm this))
 
 
+        rw [← lp_norm_def q' B' hq, lp_norm_eq_lpnorm, ← lp_norm_def p B' h, lp_norm_eq_lpnorm]
+        apply lpnorm_antimono B' p q' h hq pleq
+
+      refine (Real.le_rpow_inv_iff_of_pos ?_ ?_ ppos).mp this
+      · exact Real.rpow_nonneg (Finset.sum_nonneg (fun i' _ => Real.rpow_nonneg (norm_nonneg (B i' i)) q)) q⁻¹
+      exact (Finset.sum_nonneg (fun i' _ => Real.rpow_nonneg (norm_nonneg (B i' i)) p.toReal))
+
+#check Singleton
 
 
 
