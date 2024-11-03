@@ -8,17 +8,10 @@ package «LeanTQI» where
     ⟨`autoImplicit, false⟩,       -- Disable auto-implicit arguments
     ⟨`relaxedAutoImplicit, false⟩ -- Disable relaxed auto-implicit arguments
   ]
-  moreLinkArgs := #[
-    "-L./.lake/packages/LeanCopilot/.lake/build/lib",
-    "-lctranslate2"
-  ]
   -- add any additional package configuration options here
 
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"
-
-require LeanCopilot from git
-  "https://github.com/lean-dojo/LeanCopilot.git" @ "v1.6.0"
 
 require checkdecls from git
   "https://github.com/PatrickMassot/checkdecls.git"
