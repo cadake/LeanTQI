@@ -180,9 +180,16 @@ def lpMatrixNormedSpace [NormedField R] [SeminormedAddCommGroup 𝕂] [NormedSpa
   (by infer_instance : NormedSpace R (PiLp p fun i : m => PiLp p fun j : n => 𝕂))
 #check (inferInstance : PseudoEMetricSpace (MatrixP m n 𝕂 p))
 
-instance istPDist : Dist (MatrixP m n 𝕂 p) := {
-  dist := fun M N => ‖M - N‖
-}
+-- @[local instance]
+-- def lpMatrixBoundedSMul [SeminormedRing R] [SeminormedAddCommGroup 𝕂] [Module R 𝕂]
+--     [BoundedSMul R 𝕂] :
+--     BoundedSMul R (MatrixP m n 𝕂 p) where
+--   dist_pair_smul' := sorry
+--   dist_smul_pair' := sorry
+
+-- instance istPDist : Dist (MatrixP m n 𝕂 p) := {
+--   dist := fun M N => ‖M - N‖
+-- }
 
 #check (inferInstance : Dist (MatrixP m n 𝕂 p))
 #check (inferInstance : MetricSpace (MatrixP m n 𝕂 p))
@@ -1189,6 +1196,7 @@ theorem l2norm_unitary [DecidableEq m] (U : Matrix m m 𝕂) (h : IsUnitary U) :
     LpNorm 2 U = (Fintype.card m) ^ (1 / 2 : ℝ) := by
   simp only [LpNorm, ENNReal.two_ne_top, ↓reduceIte, ENNReal.toReal_ofNat, Real.rpow_two]
   have : ∀ i, (∑ j, ‖U i j‖ ^ 2) = 1 := by
+    intro i
     sorry
   conv_lhs =>
     enter [1, 2]
@@ -1197,6 +1205,41 @@ theorem l2norm_unitary [DecidableEq m] (U : Matrix m m 𝕂) (h : IsUnitary U) :
   have : ∑ i : m, (1 : ℝ) = Fintype.card m := by
     simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one]
   rw [this]
+
+theorem lpnorm_unit_default_eq1 [Inhabited n] [DecidableEq n] (v : Matrix n Unit 𝕂) :
+    v = (fun i _ => if i = default then 1 else 0) → LpNorm p v = 1 := by
+  intro hv
+  by_cases h : p = ⊤
+  · simp only [LpNorm, ciSup_unique, PUnit.default_eq_unit, Finset.univ_unique,
+    Finset.sum_singleton, one_div, if_pos h]
+    apply le_antisymm
+    · apply ciSup_le
+      intro x
+      by_cases g : x = default
+      · simp only [hv, if_pos g, norm_one, le_refl]
+      simp only [hv, if_neg g, norm_zero, zero_le_one]
+    rw [show 1 = ‖v default ()‖ by simp only [hv, ↓reduceIte, norm_one]]
+    apply le_ciSup (f := fun i => ‖v i PUnit.unit‖)
+    exact Finite.bddAbove_range fun i ↦ ‖v i PUnit.unit‖
+  simp only [LpNorm, ciSup_unique, PUnit.default_eq_unit, Finset.univ_unique, Finset.sum_singleton,
+    one_div, if_neg h]
+  have : (∑ x : n, ‖if x = default then (1 : 𝕂) else 0‖ ^ p.toReal) = 1 := by
+    rw [Finset.sum_eq_single_of_mem default, if_pos, norm_one, Real.one_rpow]
+    rfl
+    exact Finset.mem_univ default
+    intro x _ hx
+    rw [if_neg hx, norm_zero, Real.zero_rpow]
+    exact ENNReal.ge_one_toReal_ne_zero p h
+  rw [hv, this, Real.one_rpow]
+
+
+
+theorem unit_nonempty [Inhabited n] [DecidableEq n]:
+    Set.Nonempty {(v : Matrix n Unit 𝕂) | LpNorm p v = 1} := by
+  let v : Matrix n Unit 𝕂 := fun i _ => if i = default then 1 else 0
+  use v
+  apply lpnorm_unit_default_eq1
+  rfl
 
 theorem unit_bdd  :
     Bornology.IsBounded {(v : Matrix m n 𝕂) | LpNorm p v = 1} := by
@@ -1241,6 +1284,45 @@ theorem div_norm_self_norm_unit (hM : M ≠ 0) : LpNorm p ((1 / LpNorm p M) • 
   simp_all only [ne_eq, norm_eq_zero, not_false_eq_true, inv_mul_cancel₀]
 
 
+theorem lpnorm_smul [NormedDivisionRing R] [MulActionWithZero R 𝕂] [BoundedSMul R 𝕂](r : R) : LpNorm p (r • M) = ‖r‖ * (LpNorm p M) := by
+  simp only [LpNorm, one_div, mul_ite]
+  by_cases h : p = ⊤
+  · simp only [smul_apply, if_pos h]
+    have : ‖r‖ * ⨆ i, ⨆ j, ‖M i j‖ = ⨆ i, ⨆ j, ‖r‖ * ‖M i j‖ := by
+      rw [Real.mul_iSup_of_nonneg (norm_nonneg r)]
+      conv_lhs =>
+        enter [1]
+        intro i
+        rw [Real.mul_iSup_of_nonneg (norm_nonneg r)]
+    rw [this]
+    congr
+    ext i
+    congr
+    ext j
+    exact norm_smul r (M i j)
+  simp only [smul_apply, if_neg h]
+  have : ‖r‖ = (‖r‖ ^ p.toReal) ^ p.toReal⁻¹ := by
+    refine Eq.symm (Real.rpow_rpow_inv ?hx ?hy)
+    exact norm_nonneg r
+    exact ENNReal.ge_one_toReal_ne_zero p h
+  rw [this, ← Real.mul_rpow]
+  congr
+  rw [@Finset.mul_sum]
+  conv_rhs =>
+    enter [2]
+    intro i
+    rw [@Finset.mul_sum]
+  congr
+  ext i
+  congr
+  ext j
+  rw [← Real.mul_rpow]
+  congr
+  exact norm_smul r (M i j)
+  exact norm_nonneg r
+  exact norm_nonneg (M i j)
+  refine Real.rpow_nonneg (norm_nonneg r) p.toReal
+  exact lpnorm_rpow_nonneg p M
 
 
 end LpNorm
@@ -1250,9 +1332,9 @@ section InducedNorm
 
 open scoped NNReal ENNReal Finset Matrix
 
-variable (p q : ℝ≥0∞)
+variable (p q r : ℝ≥0∞)
 variable [RCLike 𝕂] [Fintype m] [Fintype n] [Fintype l]
-variable [Fact (1 ≤ p)] [Fact (1 ≤ q)]
+variable [Fact (1 ≤ p)] [Fact (1 ≤ q)] [Fact (1 ≤ r)]
 
 @[simp]
 def IpqNorm (p q : ℝ≥0∞) (M : Matrix m n 𝕂) : ℝ :=
@@ -1264,8 +1346,57 @@ def IpqNorm (p q : ℝ≥0∞) (M : Matrix m n 𝕂) : ℝ :=
 variable (M N : Matrix m n 𝕂)
 variable (A : Matrix m n 𝕂) (B : Matrix n l 𝕂)
 
-theorem foo : sSup ((fun v => LpNorm q (M * v)) '' {(v : Matrix n Unit 𝕂) | LpNorm p v = 1}) =
-          ⨆ (v : Matrix n Unit 𝕂), (LpNorm q (M * v)) / (LpNorm p v) := by
+theorem range_on_unit_eq_range_div : ((fun v ↦ LpNorm q (M * v)) '' {(v : Matrix n Unit 𝕂) | LpNorm p v = 1}) ∪ {0} =
+    Set.range fun (v : Matrix n Unit 𝕂) => LpNorm q (M * v) / LpNorm p v := by
+  ext x
+  constructor <;> intro xin
+  · rw [Set.mem_union] at xin
+    rcases xin with h₁ | h₂
+    · rw [@Set.mem_image] at h₁
+      rcases h₁ with ⟨v, hv, heq⟩
+      use v
+      subst heq
+      simp_all only [LpNorm, ciSup_unique, PUnit.default_eq_unit, Finset.univ_unique, Finset.sum_singleton, one_div,
+        mul_ite, ↓reduceIte, Set.mem_setOf_eq, div_one, mul_one]
+    · rw [h₂, @Set.mem_range]
+      use 0
+      rw [((lpnorm_eq0_iff p 0).mpr rfl), div_zero]
+  · rw [@Set.mem_range] at xin
+    rcases xin with ⟨v, heq⟩
+    by_cases hv : v = 0
+    · rw [hv, ((lpnorm_eq0_iff p 0).mpr rfl), div_zero] at heq
+      exact
+        Set.mem_union_right
+          ((fun v ↦ LpNorm q (M * v)) '' {v | LpNorm p v = 1})
+          (id (Eq.symm heq))
+    rw [@Set.mem_union]
+    left
+    use ((1 / (LpNorm p v)) • v)
+    constructor
+    · exact div_norm_self_norm_unit p v hv
+    · dsimp only
+      rw [← heq]
+      have : LpNorm q (M * (1 / LpNorm p v) • v) = (1 / LpNorm p v) * LpNorm q (M * v) := by
+        rw [@mul_smul, @lpnorm_smul]
+        have : ‖1 / LpNorm p v‖ = 1 / LpNorm p v :=
+          Real.norm_of_nonneg (one_div_nonneg.mpr (lpnorm_nonneg p v))
+        rw [this]
+      rw [this, mul_comm, div_eq_mul_one_div (LpNorm q (M * v)) (LpNorm p v)]
+
+theorem range_on_unit_eq_range_div' : ((fun v ↦ LpNorm q (M * v) / LpNorm p v * LpNorm p v) ''
+    {(v : Matrix n Unit 𝕂) | LpNorm p v = 1}) ∪ {0} =
+    Set.range fun (v : Matrix n Unit 𝕂) => LpNorm q (M * v) / LpNorm p v := by
+  have : ∀ (v : Matrix n Unit 𝕂), LpNorm q (M * v) / LpNorm p v * LpNorm p v = LpNorm q (M * v) := by
+    intro v
+    by_cases h : LpNorm p v = 0
+    · rw [h, div_zero, mul_zero, ((lpnorm_eq0_iff p v).mp h), Matrix.mul_zero]
+      exact id (Eq.symm ((lpnorm_eq0_iff q 0).mpr rfl))
+    rw [div_mul, div_self h, div_one]
+  simp_rw [this]
+  exact range_on_unit_eq_range_div p q M
+
+theorem sup_on_unit_eq_sup_div [DecidableEq n] [Inhabited n] : sSup ((fun v => LpNorm q (M * v)) '' {(v : Matrix n Unit 𝕂) | LpNorm p v = 1}) =
+    ⨆ (v : Matrix n Unit 𝕂), (LpNorm q (M * v)) / (LpNorm p v) := by
   have : (fun (v : Matrix n Unit 𝕂) => LpNorm q (M * v)) =
       fun (v : Matrix n Unit 𝕂) => ((LpNorm q (M * v)) / (LpNorm p v)) * (LpNorm p v) := by
     ext v
@@ -1287,45 +1418,48 @@ theorem foo : sSup ((fun v => LpNorm q (M * v)) '' {(v : Matrix n Unit 𝕂) | L
       exact hn
     contradiction
   rw [this]
-  have : ⨆ (v : Matrix n Unit 𝕂), (LpNorm q (M * v)) / (LpNorm p v) = sSup (Set.range (fun (v : Matrix n Unit 𝕂) => LpNorm q (M * v) / LpNorm p v)) := by
+  have : ⨆ (v : Matrix n Unit 𝕂), (LpNorm q (M * v)) / (LpNorm p v) =
+      sSup (Set.range (fun (v : Matrix n Unit 𝕂) => LpNorm q (M * v) / LpNorm p v)) := by
     rw [@sSup_range]
   rw [this]
-
   have : sSup ((fun (v : Matrix n Unit 𝕂) ↦ LpNorm q (M * v) / LpNorm p v * LpNorm p v) '' {v | LpNorm p v = 1}) =
-         sSup (((fun (v : Matrix n Unit 𝕂) ↦ LpNorm q (M * v) / LpNorm p v * LpNorm p v) '' {v | LpNorm p v = 1}) ∪ {0}) := by
-    sorry
-  rw [this]
-  have : ((fun v ↦ LpNorm q (M * v) / LpNorm p v * LpNorm p v) '' {(v : Matrix n Unit 𝕂) | LpNorm p v = 1}) ∪ {0} =
-        Set.range fun (v : Matrix n Unit 𝕂) => LpNorm q (M * v) / LpNorm p v := by
-    ext x
-    constructor <;> intro xin
-    · sorry
-      -- rw [@Set.mem_image] at xin
-      -- rcases xin with ⟨v, hv, heq⟩
-      -- use v
-      -- subst heq
-      -- simp_all only [LpNorm, ciSup_unique, PUnit.default_eq_unit, Finset.univ_unique, Finset.sum_singleton, one_div,
-      --   mul_ite, ↓reduceIte, Set.mem_setOf_eq, div_one, mul_one]
-    · rw [@Set.mem_range] at xin
-      rcases xin with ⟨v, heq⟩
-      by_cases hv : v = 0
-      · sorry
-      sorry
-      -- use ((1 / (LpNorm p v)) • v)
-      -- constructor
-      -- · have : LpNorm p ((1 / LpNorm p v) • v) = 1 := by
-      --     refine div_norm_self_norm_unit p v ?hM
+      sSup (((fun (v : Matrix n Unit 𝕂) ↦ LpNorm q (M * v) / LpNorm p v * LpNorm p v) '' {v | LpNorm p v = 1}) ∪ {0}) := by
+    apply csSup_eq_csSup_of_forall_exists_le
+    · intro x xin
+      use x
+      constructor
+      · rw [@Set.mem_union]
+        left
+        exact xin
+      · exact Preorder.le_refl x
+    · intro x xin
+      rw [@Set.mem_union] at xin
+      rcases xin with h₁ | h₂
+      · use x
+      · rw [h₂]
+        have : ∀ x ∈ (fun v ↦ (LpNorm q (M * v)) / (LpNorm p v) * (LpNorm p v)) '' {(v : Matrix n Unit 𝕂) | LpNorm p v = 1}, 0 ≤ x := by
+          intro y yin
+          rw [@Set.mem_image] at yin
+          rcases yin with ⟨z, _, hz⟩
+          rw [← hz]
+          exact mul_nonneg (div_nonneg (lpnorm_nonneg q (M * z)) (lpnorm_nonneg p z)) (lpnorm_nonneg p z)
+        let v : Matrix n Unit 𝕂 := fun i _ => if i = default then 1 else 0
+        use (LpNorm q (M * v))
+        constructor
+        · simp only [Set.mem_image, Set.mem_setOf_eq]
+          use v
+          have hv : LpNorm p v = 1 := lpnorm_unit_default_eq1 p v rfl
+          constructor
+          · assumption
+          · rw [div_mul, div_self, div_one]
+            exact ne_zero_of_eq_one hv
+        · exact lpnorm_nonneg q (M * v)
+  rw [this, range_on_unit_eq_range_div']
 
-      --     sorry
-      --   exact this
-      -- · sorry
-  rw [this]
-
-
-theorem ipqnorm_def :
+theorem ipqnorm_def [DecidableEq n] [Inhabited n] :
     IpqNorm p q M = ⨆ (v : Matrix n Unit 𝕂), (LpNorm q (M * v)) / (LpNorm p v) := by
   simp only [IpqNorm]
-  exact foo p q M
+  exact sup_on_unit_eq_sup_div p q M
 
 omit [Fact (1 ≤ p)] in
 theorem ipqnorm_nonneg : 0 ≤ IpqNorm p q M := by
@@ -1355,23 +1489,35 @@ theorem ipqnorm_bddabove :
     exact Continuous.continuousOn this
   apply IsCompact.bddAbove_image (unit_compact p) hf
 
-theorem lqnorm_le_ipq_lp (v : Matrix n Unit 𝕂) :
+theorem ipqnorm_bddabove' :
+    BddAbove (Set.range fun (v : Matrix n Unit 𝕂) ↦ LpNorm q (M * v) / LpNorm p v) := by
+  rw [← range_on_unit_eq_range_div]
+  apply BddAbove.union
+  exact ipqnorm_bddabove p q M
+  exact bddAbove_singleton
+
+theorem lqnorm_le_ipq_lp [DecidableEq n] [Inhabited n] (v : Matrix n Unit 𝕂) :
     LpNorm q (M * v) ≤ (IpqNorm p q M) * (LpNorm p v) := by
   simp only [ipqnorm_def]
   have : LpNorm q (M * v) / LpNorm p v ≤
       (⨆ (v : Matrix n Unit 𝕂), LpNorm q (M * v) / LpNorm p v) := by
-    sorry
+    apply le_ciSup (f:=fun (v : Matrix n Unit 𝕂) => LpNorm q (M * v) / LpNorm p v)
+    exact ipqnorm_bddabove' p q M
   by_cases h : LpNorm p v = 0
   · rw [h, (lpnorm_eq0_iff p v).mp h, mul_zero, Matrix.mul_zero,
       (lpnorm_eq0_iff q 0).mpr rfl]
   rw [← div_le_iff₀ (lt_of_le_of_ne (lpnorm_nonneg p v) fun a ↦ h (id (Eq.symm a)))]
   exact this
 
-theorem lpnorm_le_ipq_lp (v : Matrix n Unit 𝕂) :
+theorem lpnorm_le_ipp_lp [DecidableEq n] [Inhabited n] (v : Matrix n Unit 𝕂) :
+    LpNorm p (M * v) ≤ (IpqNorm p p M) * (LpNorm p v) := by
+  exact lqnorm_le_ipq_lp p p M v
+
+theorem lpnorm_le_ipq_lp [DecidableEq n] [Inhabited n] (v : Matrix n Unit 𝕂) :
     LpNorm p (M * v) ≤ (IpqNorm p p M) * (LpNorm p v) :=
   lqnorm_le_ipq_lp p p M v
 
-theorem lqnorm_div_lp_le_ipq (v : Matrix n Unit 𝕂) :
+theorem lqnorm_div_lp_le_ipq [DecidableEq n] [Inhabited n] (v : Matrix n Unit 𝕂) :
     LpNorm q (M * v) / (LpNorm p v) ≤ IpqNorm p q M := by
   by_cases h : LpNorm p v = 0
   · rw [h, div_zero]
@@ -1379,16 +1525,30 @@ theorem lqnorm_div_lp_le_ipq (v : Matrix n Unit 𝕂) :
   rw [div_le_iff₀ (lt_of_le_of_ne (lpnorm_nonneg p v) fun a ↦ h (id (Eq.symm a)))]
   exact lqnorm_le_ipq_lp p q M v
 
-theorem lpnorm_div_lp_le_ipq (v : Matrix n Unit 𝕂) :
+theorem lpnorm_div_lp_le_ipq [DecidableEq n] [Inhabited n] (v : Matrix n Unit 𝕂) :
     LpNorm q (M * v) / (LpNorm p v) ≤ IpqNorm p q M :=
   lqnorm_div_lp_le_ipq p q M v
 
+theorem ipqnorm_exists [Inhabited n] [DecidableEq n]:
+    ∃ v ∈ {(v : Matrix n Unit 𝕂) | LpNorm p v = 1}, IpqNorm p q M = LpNorm q (M * v) := by
+  rw [IpqNorm]
+  apply IsCompact.exists_sSup_image_eq (unit_compact p)
+  · exact unit_nonempty p
+  · refine Continuous.comp_continuousOn' ?_ ?_
+    exact lpnorm_continuous_at_m q
+    refine ContinuousAt.continuousOn ?_
+    intro v _
+    refine Continuous.continuousAt ?_
+    refine continuous_matrix ?_
+    intro i j
+    refine Continuous.matrix_dotProduct ?_ ?_
+    exact continuous_const
+    refine continuous_pi ?_
+    intro i
+    refine Continuous.matrix_elem ?_ i j
+    exact continuous_id'
 
-theorem ipqnorm_exists: (sorry : Prop) := by
-  sorry
-
-
-theorem ipq_triangle : IpqNorm p q (M + N) ≤ IpqNorm p q M + IpqNorm p q N := by
+theorem ipq_triangle [DecidableEq n] [Inhabited n] : IpqNorm p q (M + N) ≤ IpqNorm p q M + IpqNorm p q N := by
   have lp_triangle : ∀ (v : Matrix n Unit 𝕂),
       LpNorm q ((M + N) * v) ≤ LpNorm q (M * v) + LpNorm q (N * v) := by
     intro v
@@ -1416,6 +1576,444 @@ theorem ipq_triangle : IpqNorm p q (M + N) ≤ IpqNorm p q M + IpqNorm p q N := 
     exact this
   rw [ipqnorm_def]
   exact ciSup_le this
+
+theorem ipqnorm_eq0_iff [DecidableEq n] [Inhabited n] : IpqNorm p q M = 0 ↔ M = 0 := by
+  constructor
+  · intro h
+    sorry
+  · intro h
+    simp only [ipqnorm_def]
+    have : ∀ (v : Matrix n Unit 𝕂), LpNorm q (M * v) / LpNorm p v = 0 := by
+      intro v
+      simp_rw [h, Matrix.zero_mul, (lpnorm_eq0_iff q 0).mpr, zero_div]
+    simp_rw [this, ciSup_const]
+
+theorem ipqnorm_smul [DecidableEq n] [Inhabited n] (r : 𝕂) [SMul R (Matrix m n 𝕂)] [SMul R (Matrix m Unit 𝕂)] [Norm R] :
+    IpqNorm p q (r • M) = ‖r‖ * IpqNorm p q M := by
+  simp only [ipqnorm_def]
+  conv_lhs =>
+    enter [1]
+    intro v
+    rw [Matrix.smul_mul r M v, lpnorm_smul q (M * v) r, ← mul_div]
+  exact Eq.symm (Real.mul_iSup_of_nonneg (norm_nonneg r) fun i ↦ LpNorm q (M * i) / LpNorm p i)
+
+theorem ipq_mul_le_ipr_mul_irq [DecidableEq l] [Inhabited l] [DecidableEq n] [Inhabited n] (M : Matrix m n 𝕂) (N : Matrix n l 𝕂) :
+    IpqNorm p q (M * N) ≤ (IpqNorm p r N) * (IpqNorm r q M) := by
+  have le1 : ∀ (v : Matrix l Unit 𝕂), LpNorm q (M * (N * v)) ≤
+      (IpqNorm r q M) * (LpNorm r (N * v)) := by
+    intro v
+    apply lqnorm_le_ipq_lp
+  have le2 : ∀ (v : Matrix l Unit 𝕂), LpNorm r (N * v) ≤
+      (IpqNorm p r N) * (LpNorm p v) := by
+    intro v
+    apply lqnorm_le_ipq_lp
+  have le3 : ∀ (v : Matrix l Unit 𝕂), LpNorm q (M * (N * v)) ≤
+      (IpqNorm r q M) * (IpqNorm p r N) * (LpNorm p v) := by
+    intro v
+    have h₁ := le1 v
+    have h₂ := le2 v
+    rw [mul_assoc]
+    apply le_mul_of_le_mul_of_nonneg_left h₁ h₂
+    exact ipqnorm_nonneg r q M
+  have le4 : ∀ (v : Matrix l Unit 𝕂), LpNorm q (M * (N * v)) / (LpNorm p v) ≤
+      (IpqNorm r q M) * (IpqNorm p r N) := by
+    intro v
+    by_cases h : LpNorm p v = 0
+    · rw [h, div_zero]
+      apply mul_nonneg_iff.mpr
+      left
+      constructor
+      · exact ipqnorm_nonneg r q M
+      · exact ipqnorm_nonneg p r N
+    have : 0 < LpNorm p v :=
+      lt_of_le_of_ne (lpnorm_nonneg p v) fun a ↦ h (id (Eq.symm a))
+    exact (div_le_iff₀ this).mpr (le3 v)
+  have le5 : ⨆ (v : Matrix l Unit 𝕂), LpNorm q (M * (N * v)) / (LpNorm p v) ≤
+      ⨆ (_ : Matrix l Unit 𝕂), (IpqNorm r q M) * (IpqNorm p r N) := by
+    refine Real.iSup_le ?hS ?ha
+    · intro v
+      rw [ciSup_const]
+      exact le4 v
+    · rw [ciSup_const]
+      apply mul_nonneg_iff.mpr
+      left
+      constructor
+      · exact ipqnorm_nonneg r q M
+      · exact ipqnorm_nonneg p r N
+  simp_rw [← Matrix.mul_assoc] at le5
+  rw [← ipqnorm_def, ciSup_const, mul_comm] at le5
+  exact le5
+
+@[simp]
+abbrev IpNorm p (M : Matrix m n 𝕂) := IpqNorm p p M
+
+@[simp]
+abbrev I1Norm (M : Matrix m n 𝕂) := IpNorm 1 M
+
+@[simp]
+abbrev ItNorm (M : Matrix m n 𝕂) := IpNorm ⊤ M
+
+theorem i1norm_eq_max_col [Nonempty n] [DecidableEq n] :
+    I1Norm M = ⨆ (j : n), LpNorm 1 (Matrix.col Unit (M · j)) := by
+  apply le_antisymm
+  · simp only [I1Norm, IpNorm, IpqNorm]
+    have : ∀ x ∈ ((fun (v : Matrix n Unit 𝕂) ↦ LpNorm 1 (M * v)) '' {x | LpNorm 1 x = 1}),
+        x ≤ ⨆ j, LpNorm 1 (col Unit fun x ↦ M x j) := by
+      intro x xin
+      have : ∀ v ∈ {(x : Matrix n Unit 𝕂) | LpNorm 1 x = 1},
+          (fun v ↦ LpNorm 1 (M * v)) v ≤ ⨆ j, LpNorm 1 (col Unit fun x ↦ M x j) := by
+        intro v vin
+        have : (1 : ℝ≥0∞) ≠ ⊤ := by exact ENNReal.one_ne_top
+        dsimp only
+        simp only [LpNorm, if_neg this, Matrix.mul_apply, Finset.univ_unique, PUnit.default_eq_unit,
+          ENNReal.one_toReal, Real.rpow_one, Finset.sum_singleton, ne_eq, one_ne_zero, not_false_eq_true,
+          div_self, col_apply, Finset.sum_const, Finset.card_singleton, one_smul, ge_iff_le]
+        have : ∑ x : m, ‖∑ j : n, M x j * v j PUnit.unit‖ ≤
+            ∑ x : m, ∑ j : n, ‖M x j‖ * ‖v j PUnit.unit‖ := by
+          apply Finset.sum_le_sum
+          intro i _
+          apply norm_sum_le_of_le Finset.univ
+          intro j _
+          exact NormedRing.norm_mul (M i j) (v j PUnit.unit)
+        apply le_trans this
+        have : ∑ x : m, ∑ j : n, ‖M x j‖ * ‖v j PUnit.unit‖ =
+            ∑ j : n, ‖v j PUnit.unit‖ * ∑ x : m,  ‖M x j‖ := by
+          conv_lhs =>
+            enter [2]
+            intro x
+            enter [2]
+            intro j
+            rw [mul_comm]
+          rw [Finset.sum_comm]
+          conv_lhs =>
+            enter [2]
+            intro x
+            rw [← Finset.mul_sum]
+        rw [this]
+        have : ∀ (j : n), ∑ x : m, ‖M x j‖ ≤ ⨆ (j : n), ∑ x : m, ‖M x j‖ := by
+          intro j
+          apply le_ciSup (f := fun j => ∑ x : m, ‖M x j‖)
+          exact Finite.bddAbove_range fun j ↦ ∑ x : m, ‖M x j‖
+        have : ∑ j : n, ‖v j PUnit.unit‖ * ∑ x : m, ‖M x j‖ ≤
+            ∑ j : n, ‖v j PUnit.unit‖ * ⨆ (j : n), ∑ x : m, ‖M x j‖ :=
+          Finset.sum_le_sum (fun i _ => mul_le_mul (Preorder.le_refl ‖v i PUnit.unit‖) (this i)
+            (Finset.sum_nonneg (fun j _ => norm_nonneg (M j i))) (norm_nonneg (v i PUnit.unit)))
+        apply le_trans this
+        have : ∑ j : n, ‖v j PUnit.unit‖ * ⨆ j, ∑ x : m, ‖M x j‖ =
+            (∑ j : n, ‖v j PUnit.unit‖) * (⨆ j, ∑ x : m, ‖M x j‖) := by
+          conv_lhs =>
+            enter [2]
+            intro j
+            rw [mul_comm]
+          rw [← Finset.mul_sum, mul_comm]
+        rw [this]
+        have : ∑ j : n, ‖v j PUnit.unit‖ = 1 := by
+          simp only [LpNorm, ENNReal.one_ne_top, ↓reduceIte, Finset.univ_unique,
+            PUnit.default_eq_unit, ENNReal.one_toReal, Real.rpow_one, Finset.sum_singleton, ne_eq,
+            one_ne_zero, not_false_eq_true, div_self, Set.mem_setOf_eq] at vin
+          exact vin
+        rw [this, one_mul]
+      simp_all only [LpNorm, ENNReal.one_ne_top, ↓reduceIte, Finset.univ_unique, PUnit.default_eq_unit,
+        ENNReal.one_toReal, Real.rpow_one, Finset.sum_singleton, ne_eq, one_ne_zero, not_false_eq_true,
+        div_self, Set.mem_image, Set.mem_setOf_eq, col_apply, Finset.sum_const, Finset.card_singleton,
+        one_smul, ge_iff_le]
+      obtain ⟨w, h⟩ := xin
+      obtain ⟨left, right⟩ := h
+      subst right
+      simp_all only
+    refine Real.sSup_le this ?_
+    have : ∀ (j : n), 0 ≤ LpNorm 1 (col Unit fun x ↦ M x j) :=
+      fun j ↦ lpnorm_nonneg 1 (col Unit fun x ↦ M x j)
+    exact Real.iSup_nonneg this
+  · simp only [I1Norm, IpNorm, IpqNorm]
+    refine Real.iSup_le ?_ ?_
+    · have : ∀ (i : n), LpNorm 1 (col Unit fun x ↦ M x i) ≤
+          ⨆ (i : n), LpNorm 1 (col Unit fun x ↦ M x i) := by
+        intro i
+        apply le_ciSup (f := fun i => LpNorm 1 (col Unit fun x ↦ M x i))
+        exact Finite.bddAbove_range fun i ↦ LpNorm 1 (col Unit fun x ↦ M x i)
+      intro i
+      apply le_trans (this i)
+      apply le_csSup
+      exact ipqnorm_bddabove 1 1 M
+      refine
+        (Set.mem_image (fun v ↦ LpNorm 1 (M * v)) {x | LpNorm 1 x = 1}
+              (⨆ i, LpNorm 1 (col Unit fun x ↦ M x i))).mpr
+          ?_
+      conv =>
+        enter [1]
+        intro x
+        enter [2]
+        rw [eq_comm]
+      have : ∃ (i : n), LpNorm 1 (col Unit fun x ↦ M x i) =
+          ⨆ i, LpNorm 1 (col Unit fun x ↦ M x i) := by
+        refine exists_eq_ciSup_of_finite
+      rcases this with ⟨x, hx⟩
+      let v : Matrix n Unit 𝕂 := fun i _ => if i = x then 1 else 0
+      use v
+      constructor
+      · simp only [LpNorm, ENNReal.one_ne_top, ↓reduceIte, Finset.univ_unique, PUnit.default_eq_unit,
+          ENNReal.one_toReal, Real.rpow_one, Finset.sum_singleton, ne_eq, one_ne_zero,
+          not_false_eq_true, div_self, Set.mem_setOf_eq, v]
+        rw [Finset.sum_eq_single_of_mem x]
+        simp only [↓reduceIte, norm_one]
+        exact Finset.mem_univ x
+        intros
+        simp only [norm_eq_zero, ite_eq_else, one_ne_zero, imp_false]
+        assumption
+      · simp only [LpNorm, ENNReal.one_ne_top, ↓reduceIte, Finset.univ_unique,
+          PUnit.default_eq_unit, col_apply, ENNReal.one_toReal, Real.rpow_one, Finset.sum_const,
+          Finset.card_singleton, one_smul, ne_eq, one_ne_zero, not_false_eq_true, div_self,
+          Finset.sum_singleton, v]
+        have : ⨆ i, ∑ x : m, ‖M x i‖ = ⨆ i, LpNorm 1 (col Unit fun x ↦ M x i) := by
+          congr
+          ext i
+          simp only [LpNorm, ENNReal.one_ne_top, ↓reduceIte, Finset.univ_unique,
+            PUnit.default_eq_unit, col_apply, ENNReal.one_toReal, Real.rpow_one, Finset.sum_const,
+            Finset.card_singleton, one_smul, ne_eq, one_ne_zero, not_false_eq_true, div_self]
+        rw [this, ← hx, LpNorm]
+        have : (1 : ℝ≥0∞) ≠ ⊤ := by exact ENNReal.one_ne_top
+        simp only [if_neg this, Finset.univ_unique, PUnit.default_eq_unit, col_apply,
+          ENNReal.one_toReal, Real.rpow_one, Finset.sum_const, Finset.card_singleton, one_smul,
+          ne_eq, one_ne_zero, not_false_eq_true, div_self, mul_apply]
+        simp_all only [LpNorm, ↓reduceIte, Finset.univ_unique, PUnit.default_eq_unit,
+          ENNReal.one_toReal, Real.rpow_one, Finset.sum_singleton, ne_eq, one_ne_zero,
+          not_false_eq_true, div_self, Set.mem_image, Set.mem_setOf_eq,col_apply,
+          Finset.sum_const, Finset.card_singleton, one_smul, exists_exists_and_eq_and,
+          ENNReal.one_ne_top,mul_ite, mul_one, mul_zero, Finset.sum_ite_eq', Finset.mem_univ]
+    · rw [← IpqNorm]
+      exact ipqnorm_nonneg 1 1 M
+
+theorem sum_norm_eq_norm_sum_ofreal (f : n → 𝕂) : ∑ x : n, ‖f x‖ = ‖∑ x : n, RCLike.ofReal (K:=𝕂) ‖f x‖‖ := by
+  have : ∑ x : n, ‖f x‖ = ‖∑ x : n, ↑‖f x‖‖ := by
+    simp only [Real.norm_eq_abs]
+    rw [abs_eq_self.mpr]
+    apply Finset.sum_nonneg
+    intro j _
+    exact norm_nonneg (f j)
+  rw [this]
+  have : ‖∑ x : n, ‖f x‖‖ = ‖∑ x : n, (‖f x‖ : 𝕂)‖ := by
+    simp only [Real.norm_eq_abs]
+    have : (∑ x : n, (RCLike.ofReal ‖f x‖)) = (RCLike.ofReal (K:=𝕂) (∑ x : n, ‖f x‖)) := by
+      simp only [map_sum]
+    rw [this, RCLike.norm_ofReal]
+  rw [this]
+
+theorem itnorm_eq_max_row [DecidableEq n] [Inhabited n] [Nonempty m] [LE 𝕂] :
+    ItNorm M = ⨆ (i : m), LpNorm 1 (Matrix.row Unit (M i)) := by
+  apply le_antisymm
+  · simp only [ItNorm, IpNorm, ipqnorm_def]
+    apply Real.iSup_le
+    · intro v
+      by_cases h : LpNorm ⊤ v = 0
+      · rw [h, div_zero]
+        exact Real.iSup_nonneg (fun i => lpnorm_nonneg 1 (row Unit (M i)))
+      rw [div_le_iff₀ (lt_of_le_of_ne (lpnorm_nonneg ⊤ v) fun a ↦ h (id (Eq.symm a)))]
+      simp only [LpNorm, ↓reduceIte, ciSup_unique, PUnit.default_eq_unit, ENNReal.one_ne_top,
+        Finset.univ_unique, row_apply, ENNReal.one_toReal, Real.rpow_one, Finset.sum_const,
+        Finset.card_singleton, one_smul, ne_eq, one_ne_zero, not_false_eq_true, div_self]
+      apply ciSup_le
+      intro i
+      simp only [mul_apply]
+      have : ‖∑ j : n, M i j * v j PUnit.unit‖ ≤ ∑ j : n, ‖M i j‖ * ‖v j PUnit.unit‖ :=
+        norm_sum_le_of_le Finset.univ (fun b _ => NormedRing.norm_mul (M i b) (v b PUnit.unit))
+      apply le_trans this
+      have : ∀ j, ‖v j PUnit.unit‖ ≤ ⨆ i, ‖v i PUnit.unit‖ :=
+        fun j => le_ciSup (f := fun i => ‖v i PUnit.unit‖)
+          (Finite.bddAbove_range fun i ↦ ‖v i PUnit.unit‖) j
+      have : ∑ j : n, ‖M i j‖ * ‖v j PUnit.unit‖ ≤
+          (∑ j : n, ‖M i j‖) * (⨆ j, ‖v j PUnit.unit‖) := by
+        rw [Finset.sum_mul]
+        apply Finset.sum_le_sum
+        intro j _
+        apply mul_le_mul
+        exact Preorder.le_refl ‖M i j‖
+        apply le_ciSup (f := fun j => ‖v j PUnit.unit‖)
+          (Finite.bddAbove_range fun j ↦ ‖v j PUnit.unit‖)
+        exact norm_nonneg (v j PUnit.unit)
+        exact norm_nonneg (M i j)
+      apply le_trans this
+      apply mul_le_mul
+      · apply le_ciSup (f := fun i => ∑ x : n, ‖M i x‖)
+          (Finite.bddAbove_range fun i ↦ ∑ x : n, ‖M i x‖)
+      exact Preorder.le_refl (⨆ j, ‖v j PUnit.unit‖)
+      apply Real.iSup_nonneg (fun i => norm_nonneg (v i PUnit.unit))
+      apply Real.iSup_nonneg (fun i => Finset.sum_nonneg (fun j _ => norm_nonneg (M i j)))
+    · apply Real.iSup_nonneg
+      intro i
+      exact lpnorm_nonneg 1 (row Unit (M i))
+  · have : ∃ i, LpNorm 1 (row Unit (M i)) = ⨆ i, LpNorm 1 (row Unit (M i)) := by
+      exact exists_eq_ciSup_of_finite
+    rcases this with ⟨i, hi⟩
+    let v : Matrix n Unit 𝕂 := fun j _ => if M i j = 0 then 1 else (star (M i j)) / ‖M i j‖
+    have hv : LpNorm ⊤ v = 1 := by
+      simp only [LpNorm, ↓reduceIte, RCLike.star_def, ciSup_unique, v]
+      have : (1 : ℝ) = ⨆ (j : n), 1 := by
+        exact Eq.symm ciSup_const
+      rw [this]
+      congr
+      ext x
+      by_cases h : M i x = 0
+      · simp only [h, ↓reduceIte, norm_one]
+      simp only [h, ↓reduceIte, norm_div, RCLike.norm_conj, norm_algebraMap', norm_norm, ne_eq,
+        norm_eq_zero, not_false_eq_true, div_self]
+    rw [← hi, ItNorm, IpNorm, ipqnorm_def]
+    have : LpNorm 1 (row Unit (M i)) ≤ ‖(M * v) i PUnit.unit‖ := by
+      simp only [LpNorm, ENNReal.one_ne_top, ↓reduceIte, Finset.univ_unique, PUnit.default_eq_unit,
+        row_apply, ENNReal.one_toReal, Real.rpow_one, Finset.sum_const, Finset.card_singleton,
+        one_smul, ne_eq, one_ne_zero, not_false_eq_true, div_self, v, mul_apply]
+      simp only [RCLike.star_def, mul_ite, mul_one]
+      have : ∀ x, M i x * ((starRingEnd 𝕂) (M i x) / ↑‖M i x‖) = ↑‖M i x‖ := by
+        intro x
+        by_cases h : (RCLike.ofReal ‖M i x‖) = (0 : 𝕂)
+        · simp only [h, div_zero, mul_zero]
+        rw [mul_div, @RCLike.mul_conj, pow_two, ← mul_div, div_self, mul_one]
+        assumption
+      simp_rw [this]
+      have : (∑ x : n, if M i x = 0 then M i x else RCLike.ofReal ‖M i x‖) =
+          ∑ x : n, RCLike.ofReal ‖M i x‖ := by
+        congr
+        ext x
+        by_cases h : M i x = 0
+        · simp only [h, if_pos, norm_zero, map_zero]
+        simp only [if_neg h]
+      rw [this, sum_norm_eq_norm_sum_ofreal]
+    apply le_trans this
+    have : ‖(M * v) i PUnit.unit‖ ≤ ⨆ j, ‖(M * v) j PUnit.unit‖ := by
+      apply le_ciSup (f := fun i => ‖(M * v) i PUnit.unit‖)
+      exact Finite.bddAbove_range fun i ↦ ‖(M * v) i PUnit.unit‖
+    apply le_trans this
+    have : ⨆ j, ‖(M * v) j PUnit.unit‖ = LpNorm ⊤ (M * v) := by
+      simp only [LpNorm, ↓reduceIte, ciSup_unique, PUnit.default_eq_unit]
+    rw [this, ← div_one (LpNorm ⊤ (M * v)), ← hv]
+    apply le_ciSup (f := fun v => LpNorm ⊤ (M * v) / LpNorm ⊤ v)
+    exact ipqnorm_bddabove' ⊤ ⊤ M
+
+theorem i2tnorm_eq_max_l2norm_row [DecidableEq n] [Inhabited n] [LE 𝕂] [Nonempty m] :
+    IpqNorm 2 ⊤ M = ⨆ (i : m), LpNorm 2 (Matrix.row Unit (M i)) := by
+  apply le_antisymm
+  · simp only [ipqnorm_def]
+    apply ciSup_le
+    intro v
+    by_cases h : LpNorm 2 v = 0
+    · rw [h, div_zero]
+      apply Real.iSup_nonneg
+      intro i
+      exact lpnorm_nonneg 2 (row Unit (M i))
+    rw [div_le_iff₀ (lt_of_le_of_ne (lpnorm_nonneg 2 v) fun a ↦ h (id (Eq.symm a))), LpNorm, if_pos]
+    simp only [ciSup_unique, PUnit.default_eq_unit, mul_apply]
+    have : ⨆ i, ‖∑ x : n, M i x * v x PUnit.unit‖ ≤
+        ⨆ i, (∑ x : n, ‖(M i x)‖ ^ (2 : ℝ)) ^ (1 / (2 : ℝ)) *
+          (∑ x, ‖(v x PUnit.unit)‖ ^ (2 : ℝ)) ^ (1 / (2 : ℝ)) := by
+      have : ∀ i, ‖∑ x : n, M i x * v x PUnit.unit‖ ≤ ∑ x : n, ‖M i x‖ * ‖v x PUnit.unit‖ :=
+        fun i => norm_sum_le_of_le Finset.univ
+          (fun b _ => NormedRing.norm_mul (M i b) (v b PUnit.unit))
+      have : ∀ i, ‖∑ x : n, M i x * v x PUnit.unit‖ ≤
+          (∑ x : n, ‖(M i x)‖ ^ (2 : ℝ)) ^ (1 / (2 : ℝ)) * (∑ x, ‖(v x PUnit.unit)‖ ^ (2 : ℝ)) ^ (1 / (2 : ℝ)) :=
+        fun i => le_trans (this i) (Real.inner_le_Lp_mul_Lq_of_nonneg
+          Finset.univ ((Real.isConjExponent_iff_eq_conjExponent (one_lt_two)).mpr (by norm_num))
+          (fun j _ => norm_nonneg (M i j)) (fun j _ => norm_nonneg (v j PUnit.unit)))
+      refine ciSup_mono ?B this
+      exact
+        Finite.bddAbove_range fun i ↦
+          (∑ x : n, ‖M i x‖ ^ 2) ^ (1 / 2) * (∑ x : n, ‖v x PUnit.unit‖ ^ 2) ^ (1 / 2)
+    apply le_trans this
+    have : (∑ x : n, ‖v x PUnit.unit‖ ^ (2 : ℝ)) ^ (1 / 2 : ℝ) = LpNorm 2 v := by
+      simp only [LpNorm, ENNReal.two_ne_top, ↓reduceIte, Finset.univ_unique, PUnit.default_eq_unit,
+        ENNReal.toReal_ofNat, Real.rpow_two, Finset.sum_singleton, one_div]
+    conv_lhs =>
+      enter [1]
+      intro i
+      rw [mul_comm, this]
+    rw [← Real.mul_iSup_of_nonneg (lpnorm_nonneg 2 v), mul_comm]
+    have : (⨆ i, (∑ x : n, ‖M i x‖ ^ (2 : ℝ)) ^ (1 / 2 : ℝ)) = (⨆ i, LpNorm 2 (row Unit (M i))) := by
+      apply iSup_congr
+      intro i
+      simp only [LpNorm, ENNReal.two_ne_top, PUnit.default_eq_unit, ↓reduceIte,
+        Finset.univ_unique, PUnit.default_eq_unit, row_apply, Finset.sum_const,
+        Finset.card_singleton, one_smul, ENNReal.toReal_ofNat]
+    rw [this]
+    rfl
+  · have : ∃ i, LpNorm 2 (row Unit (M i)) =  ⨆ i, LpNorm 2 (row Unit (M i)) := by
+      refine exists_eq_ciSup_of_finite
+    rcases this with ⟨x, hx⟩
+    let v : Matrix n Unit 𝕂 := fun j _ => (star (M x j)) / (LpNorm 2 (row Unit (M x)))
+    have hv : LpNorm 2 v = 1 := by
+      sorry
+    rw [ipqnorm_def]
+    have : ⨆ i, LpNorm 2 (row Unit (M i)) ≤ LpNorm ⊤ (M * v) / LpNorm 2 v := by
+      rw [hv, div_one, ← hx]
+      have : LpNorm 2 (row Unit (M x)) = ‖((M * v) x ())‖ := by
+        simp only [mul_apply, v, RCLike.star_def]
+        conv_rhs =>
+          enter [1, 2]
+          intro y
+          rw [mul_div, mul_comm]
+        have : ∀ y, M x y * (starRingEnd 𝕂) (M x y) = RCLike.ofReal (‖M x y‖ ^ (2 : ℝ)) := by
+          intro y
+          rw [RCLike.mul_conj]
+          simp only [Real.rpow_two, map_pow]
+        conv_rhs =>
+          enter [1, 2]
+          intro y
+          rw [mul_comm, this y]
+        have : ∀ y, (RCLike.ofReal (K:=𝕂) (‖M x y‖ ^ (2 : ℝ))) / (RCLike.ofReal (LpNorm 2 (row Unit (M x)))) = RCLike.ofReal ((‖M x y‖ ^ (2 : ℝ)) / (LpNorm 2 (row Unit (M x)))) := by
+          intro y
+          norm_cast
+        conv_rhs =>
+          enter [1, 2]
+          intro y
+          rw [this y]
+        rw [← RCLike.ofReal_sum, @norm_algebraMap', Real.norm_eq_abs, abs_eq_self.mpr]
+        simp_rw [div_eq_inv_mul]
+        rw [← Finset.mul_sum]
+        have : ∑ i : n, ‖M x i‖ ^ (2 : ℝ) = (LpNorm 2 (row Unit (M x))) ^ (2 : ℝ) := by
+          have : (2 : ℝ≥0∞) ≠ ⊤ := by exact ENNReal.two_ne_top
+          simp only [LpNorm, if_neg this, Finset.univ_unique,
+            PUnit.default_eq_unit, row_apply, Finset.sum_const,
+            Finset.card_singleton, one_div, one_smul]
+          rw [← Real.rpow_mul]
+          have : (ENNReal.toReal 2)⁻¹ * 2 = 1 := by
+            simp only [ENNReal.toReal_ofNat, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true,
+              inv_mul_cancel₀]
+          rw [this, Real.rpow_one]
+          simp only [Real.rpow_two, ENNReal.toReal_ofNat]
+          apply Finset.sum_nonneg
+          intro y _
+          apply Real.rpow_nonneg
+          exact norm_nonneg (M x y)
+        rw [this, Real.rpow_two]
+        generalize LpNorm 2 (row Unit (M x)) = a
+        by_cases h : a = 0
+        · rw [h, zero_pow, mul_zero]
+          exact Ne.symm (Nat.zero_ne_add_one 1)
+        rw [@sq, ← mul_assoc, inv_mul_cancel₀, one_mul]
+        assumption
+        apply Finset.sum_nonneg
+        intro y _
+        rw [div_nonneg_iff]
+        left
+        constructor
+        · simp only [Real.rpow_two, norm_nonneg, pow_nonneg]
+        · exact lpnorm_nonneg 2 (row Unit (M x))
+      rw [this]
+      simp only [LpNorm, ↓reduceIte, ciSup_unique, PUnit.default_eq_unit]
+      apply le_ciSup (f := fun i => ‖(M * v) i PUnit.unit‖)
+      exact Finite.bddAbove_range fun i ↦ ‖(M * v) i PUnit.unit‖
+    apply le_trans this
+    apply le_ciSup (f := fun v => LpNorm ⊤ (M * v) / LpNorm 2 v)
+    exact ipqnorm_bddabove' 2 ⊤ M
+
+
+theorem i12norm_eq_max_l2norm_col [DecidableEq n] [Inhabited n] :
+    IpqNorm 1 2 M = ⨆ (j : n), LpNorm 2 (Matrix.col Unit (M · j)) := by
+  sorry
+
+
+
+
+
+
 
 end InducedNorm
 
