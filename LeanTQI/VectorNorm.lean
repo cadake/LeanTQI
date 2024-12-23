@@ -439,7 +439,7 @@ theorem lpnorm_elem_div_norm (i : m) (j : n) : 0 ≤ ‖M i j‖ / LpNorm p M �
   constructor
   · rw [division_def]
     apply mul_nonneg (norm_nonneg (M i j)) (inv_nonneg_of_nonneg <| lpnorm_nonneg p M)
-  · apply div_le_one_of_le (lpnorm_elem_le_norm p M i j) (lpnorm_nonneg p M)
+  · apply div_le_one_of_le₀ (lpnorm_elem_le_norm p M i j) (lpnorm_nonneg p M)
 
 -- Lemma lpnorm_nincr (p1 p2 : R) (m n : nat) (A : 'M[C]_(m,n)) :
 --   1 <= p1 <= p2 -> lpnorm p1 A >= lpnorm p2 A.
@@ -1406,9 +1406,7 @@ theorem sup_on_unit_eq_sup_div [DecidableEq n] [Inhabited n] : sSup ((fun v => L
       rw [this, mul_zero]
       have : M * v = 0 := by
         subst hv
-        simp_all only [LpNorm, zero_apply, norm_zero, ciSup_unique, Real.ciSup_const_zero, Finset.univ_unique,
-          PUnit.default_eq_unit, Finset.sum_const, Finset.card_singleton, one_smul, Finset.card_univ, nsmul_eq_mul,
-          one_div, ite_eq_then, Matrix.mul_zero]
+        simp only [Matrix.mul_zero]
       rw [this]
       exact (lpnorm_eq0_iff q 0).mpr rfl
     rw [div_mul, div_self, div_one]
@@ -1464,7 +1462,7 @@ theorem ipqnorm_def [DecidableEq n] [Inhabited n] :
 omit [Fact (1 ≤ p)] in
 theorem ipqnorm_nonneg : 0 ≤ IpqNorm p q M := by
   simp only [IpqNorm]
-  refine Real.sSup_nonneg ((fun v ↦ LpNorm q (M * v)) '' {x | LpNorm p x = 1}) ?hS
+  refine Real.sSup_nonneg ?_
   intro x xin
   have : ∀ (v : Matrix n Unit 𝕂), 0 ≤ (fun v ↦ LpNorm q (M * v)) v :=
     fun v => lpnorm_nonneg q (M * v)
@@ -1536,7 +1534,7 @@ theorem ipqnorm_exists [Inhabited n] [DecidableEq n]:
   · exact unit_nonempty p
   · refine Continuous.comp_continuousOn' ?_ ?_
     exact lpnorm_continuous_at_m q
-    refine ContinuousAt.continuousOn ?_
+    refine continuousOn_of_forall_continuousAt ?_
     intro v _
     refine Continuous.continuousAt ?_
     refine continuous_matrix ?_
@@ -1759,7 +1757,7 @@ theorem i1norm_eq_max_col [Nonempty n] [DecidableEq n] :
         simp only [↓reduceIte, norm_one]
         exact Finset.mem_univ x
         intros
-        simp only [norm_eq_zero, ite_eq_else, one_ne_zero, imp_false]
+        simp only [norm_eq_zero, ite_eq_right_iff, one_ne_zero, imp_false]
         assumption
       · simp only [LpNorm, ENNReal.one_ne_top, ↓reduceIte, Finset.univ_unique,
           PUnit.default_eq_unit, col_apply, ENNReal.one_toReal, Real.rpow_one, Finset.sum_const,
